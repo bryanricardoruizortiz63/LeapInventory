@@ -1,5 +1,6 @@
 // Service Worker: cachea la app para funcionamiento offline
-const CACHE_VERSION = 'inventario-pro-v5';
+const CACHE_VERSION = 'v4';  // 
+
 const APP_SHELL = [
   './',
   './index.html',
