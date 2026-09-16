@@ -1,5 +1,6 @@
+
 // Service Worker: cachea la app para funcionamiento offline
-const CACHE_VERSION = 'v11';  // 
+const CACHE_VERSION = 'v12';  // ← Incrementa a v12
 
 const APP_SHELL = [
   './',
@@ -7,9 +8,7 @@ const APP_SHELL = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/apple-touch-icon.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  './icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -18,7 +17,7 @@ self.addEventListener('install', (event) => {
       return Promise.all(
         APP_SHELL.map((url) =>
           cache.add(new Request(url, { cache: 'reload' })).catch(() => {
-            // Si un recurso externo falla, continuamos (necesita internet)
+            console.warn('No se pudo cachear:', url);
           })
         )
       );
