@@ -685,7 +685,7 @@
 <script>
   // ===== DATABASE =====
   const DB_NAME = 'InventarioEscolar';
-  const DB_VERSION = 10;
+  const DB_VERSION = 11;
   let db, items = [], presets = [], salones = [], activePresetId = null, activeSalonNum = null;
   let editingId = null;
   let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
@@ -1063,12 +1063,41 @@
     currentScanData[field.key] = code.trim();
 
     if(navigator.vibrate) navigator.vibrate([70, 50, 70]);
-
     showScanToast(code.trim());
 
     currentScanIdx++;
     
-    if(currentScanIdx < scanFields.length) {
+    // Verificar si todos los campos requeridos están llenos
+    const allRequiredFilled = scanFields.filter(f => f.required).every(f => currentScanData[f.key]);
+    
+    if(allRequiredFilled && currentScanIdx >= scanFields.length) {
+      // Todos los campos requeridos completos y terminamos
+      setTimeout(() => {
+        document.getElementById('scanning-banner').classList.remove('show');
+        document.getElementById('scan-button-wrap').classList.remove('hidden');
+        scanMode = false;
+        saveScannedItemQuick(currentScanData);
+      }, 800);
+    } else if(allRequiredFilled && !scanFields[currentScanIdx]?.required) {
+      // Todos los requeridos están llenos, pero hay campos opcionales
+      // Preguntar si continuar o guardar
+      setTimeout(() => {
+        const continuar = confirm('✓ Campos requeridos completados. ¿Continuar escaneando campos opcionales o guardar?');
+        if(continuar) {
+          updateScanningBanner();
+          const scanInput = document.getElementById('scanning-input-visible');
+          scanInput.value = '';
+          scanInput.focus();
+          if(navigator.vibrate) navigator.vibrate(100);
+        } else {
+          document.getElementById('scanning-banner').classList.remove('show');
+          document.getElementById('scan-button-wrap').classList.remove('hidden');
+          scanMode = false;
+          saveScannedItemQuick(currentScanData);
+        }
+      }, 800);
+    } else if(currentScanIdx < scanFields.length) {
+      // Seguir con el siguiente campo
       setTimeout(() => {
         updateScanningBanner();
         const scanInput = document.getElementById('scanning-input-visible');
@@ -1077,13 +1106,74 @@
         if(navigator.vibrate) navigator.vibrate(100);
       }, 800);
     } else {
+      // Completamos todos los campos
       setTimeout(() => {
         document.getElementById('scanning-banner').classList.remove('show');
         document.getElementById('scan-button-wrap').classList.remove('hidden');
         scanMode = false;
-        openItemSheet(null, currentScanData);
+        saveScannedItemQuick(currentScanData);
       }, 800);
     }
+  }
+
+  function saveScannedItemQuick(scanData) {
+    const preset = getCurrentPreset();
+    const newItem = {
+      id: 'item_' + Date.now(),
+      presetId: preset.id,
+      salon: activeSalonNum,
+      nombre: preset.fixedName,
+      createdAt: new Date().toISOString(),
+      ...scanData
+    };
+    
+    items.push(newItem);
+    idbPut('items', newItem).then(() => {
+      showToast(`✓ ${preset.name} guardado`);
+      // Mostrar opción de editar/borrar
+      showScannedItemOptions(newItem);
+      currentScanData = {};
+      currentScanIdx = 0;
+      render();
+    });
+  }
+
+  function showScannedItemOptions(item) {
+    const preset = presets.find(p => p.id === item.presetId);
+    const html = `
+      <div style="position: fixed; bottom: 20px; left: 20px; right: 20px; background: #10b981; color: white; padding: 16px; border-radius: 8px; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <div style="font-weight: bold; margin-bottom: 12px;">✓ ${preset?.name} - ${item.codigo || 'Sin código'}</div>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="editItemQuick('${item.id}')" style="flex: 1; padding: 8px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">✏️ Editar</button>
+          <button onclick="deleteItemQuick('${item.id}')" style="flex: 1; padding: 8px; background: rgba(255,0,0,0.3); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🗑️ Borrar</button>
+          <button onclick="dismissNotification()" style="flex: 1; padding: 8px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 4px; cursor: pointer;">OK</button>
+        </div>
+      </div>
+    `;
+    const notif = document.createElement('div');
+    notif.innerHTML = html;
+    document.body.appendChild(notif);
+  }
+
+  function editItemQuick(itemId) {
+    dismissNotification();
+    openItemSheet(itemId);
+  }
+
+  function deleteItemQuick(itemId) {
+    if(confirm('¿Borrar este artículo?')) {
+      items = items.filter(it => it.id !== itemId);
+      idbDelete('items', itemId).then(() => {
+        showToast('✓ Artículo borrado');
+        dismissNotification();
+        render();
+      });
+    }
+  }
+
+  function dismissNotification() {
+    const notif = document.querySelector('[style*="position: fixed"]');
+    if(notif) notif.remove();
   }
 
   // ===== FORM =====
