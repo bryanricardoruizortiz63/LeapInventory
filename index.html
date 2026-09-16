@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Inventario Escolar Pro - Scanner</title>
+
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1e40af">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Inventario">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="icon" href="./icons/icon-192.png">
+
+<style>
+  :root{
+    --primary: #1e40af;
+    --primary-2: #2563eb;
+    --accent: #3b82f6;
+    --danger: #dc2626;
+    --warning: #f59e0b;
+    --success: #10b981;
+    --border: #e2e8f0;
+    --bg-light: #f8fafc;
+    --bg-lighter: #f1f5f9;
+    --text: #0f172a;
+    --text-soft: #475569;
+    --text-softer: #64748b;
+    --muted: #94a3b8;
+    --radius: 16px;
+    --radius-sm: 8px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-lighter);
+    color: var(--text);
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input, textarea, select { -webkit-user-select: text; user-select: text; }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-2) 100%);
+    color: #fff;
+    padding: calc(14px + var(--safe-top)) 16px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 12px rgba(15,23,42,.15);
+  }
+  header h1 {
+    font-size: 19px;
+    margin: 0;
+    font-weight: 700;
+    flex: 1;
+  }
+  header button {
+    background: rgba(255,255,255,.16);
+    border: none;
+    color: #fff;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  header button:active { background: rgba(255,255,255,.25); }
+
+  .preset-bar {
+    background: #fff;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .preset-bar::-webkit-scrollbar { display: none; }
+  .preset-btn {
+    flex: 0 0 auto;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    color: var(--text-soft);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .preset-btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+
+  .summary {
+    background: #fff;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+  }
+  .stat {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stat .n {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .stat .l {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  main {
+    padding: 16px;
+    padding-bottom: calc(16px + var(--safe-bottom));
+    min-height: calc(100vh - 300px);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 16px;
+    color: var(--muted);
+  }
+  .empty-state > div:first-child {
+    font-size: 60px;
+    margin-bottom: 16px;
+  }
+
+  .scan-button-wrap {
+    text-align: center;
+    margin: 40px 0;
+  }
+  .scan-button {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+    color: #fff;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(30, 64, 175, 0.3);
+    width: 100%;
+    max-width: 300px;
+    transition: transform 0.2s;
+  }
+  .scan-button:active { transform: scale(0.98); }
+
+  .item-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .item-card:active { background: var(--bg-light); }
+  .item-card .thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .item-card .info {
+    flex: 1;
+    min-width: 0;
+  }
+  .item-card .title {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .item-card .sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .scanning-mode-banner {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    text-align: center;
+    display: none;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    animation: slideDown 0.3s ease-out;
+  }
+  .scanning-mode-banner.show {
+    display: block;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .scanning-mode-banner .status {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+  .scanning-mode-banner .field-name {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  .scanning-mode-banner .field-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 14px 12px;
+    border-radius: 8px;
+    word-break: break-all;
+    min-height: 28px;
+  }
+  .scanning-mode-banner .progress {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-top: 12px;
+    font-weight: 500;
+  }
+
+  .scan-toast {
+    position: fixed;
+    bottom: calc(20px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--success);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+    z-index: 99;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    animation: slideUp 0.3s ease-out;
+  }
+  .scan-toast.show { display: block; }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  .field {
+    margin-bottom: 16px;
+  }
+  .field label {
+    display: block;
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .field.required label::after {
+    content: ' *';
+    color: var(--danger);
+  }
+  .field input,
+  .field textarea,
+  .field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field input:focus,
+  .field textarea:focus,
+  .field select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+  }
+  .field input::placeholder {
+    color: var(--muted);
+  }
+
+  .field-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .btn-row {
+    margin-top: 20px;
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn.primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn.primary:active { background: #1e3a8a; }
+  .btn.secondary {
+    background: var(--bg-light);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+  }
+  .btn.secondary:active { background: #e2e8f0; }
+  .btn.danger {
+    background: #fee2e2;
+    color: var(--danger);
+  }
+  .btn.danger:active { background: #fecaca; }
+  .btn.small {
+    padding: 8px 12px;
+    font-size: 13px;
+    flex: 0;
+  }
+
+  .backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    z-index: 40;
+  }
+  .backdrop.show { display: block; }
+
+  .sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: none;
+    z-index: 50;
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+    padding-bottom: var(--safe-bottom);
+  }
+  .sheet.show {
+    display: block;
+    transform: translateY(0);
+  }
+  .sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+  .sheet-header h2 {
+    margin: 0;
+    font-size: 18px;
+    flex: 1;
+    min-width: 0;
+  }
+  .sheet-header button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--muted);
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sheet-body {
+    padding: 16px;
+  }
+
+  #toast {
+    position: fixed;
+    bottom: calc(20px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    display: none;
+    z-index: 99;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  #toast.show { display: block; }
+
+  .hidden { display: none !important; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1.5px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .tab {
+    flex: 1;
+    padding: 12px;
+    background: none;
+    border: none;
+    color: var(--text-soft);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+
+  /* Preset editor */
+  .preset-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .preset-item .info {
+    flex: 1;
+    min-width: 0;
+  }
+  .preset-item .name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .preset-item .desc {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .preset-item .actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .warning-box {
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #b45309;
+  }
+
+  /* Draft indicator */
+  .draft-indicator {
+    display: inline-block;
+    background: var(--warning);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+</style>
+
+</head>
+<body>
+
+<header>
+  <h1>📦 Inventario Escolar Pro</h1>
+  <button id="btn-export" title="Exportar">⬇︎</button>
+  <button id="btn-settings" title="Gestionar">⚙︎</button>
+</header>
+
+<div class="preset-bar" id="preset-bar"></div>
+
+<div class="preset-bar" id="salones-bar"></div>
+
+<div class="summary">
+  <div class="stat"><div class="n" id="stat-count">0</div><div class="l">Artículos</div></div>
+  <div class="stat"><div class="n" id="stat-preset">0</div><div class="l">En grupo</div></div>
+</div>
+
+<main>
+  <div class="scanning-mode-banner" id="scanning-banner">
+    <div class="status">📱 Escaneando...</div>
+    <div class="field-name" id="banner-field-name">CÓDIGO</div>
+    <div class="field-value" id="banner-field-value">Escribiendo...</div>
+    <div class="progress"><span id="banner-progress">Campo 1 de 3</span></div>
+    <button id="btn-cancel-scan" style="
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    ">✕ Cancelar</button>
+  </div>
+
+  <div class="scan-button-wrap" id="scan-button-wrap">
+    <button class="scan-button" id="btn-scan">📱 Escanear nuevo</button>
+    <button class="scan-button" id="btn-manual-code" style="background: #6366f1; border-color: #6366f1;">⌨️ Escribir código</button>
+  </div>
+
+  <div id="list-container"></div>
+
+  <div class="empty-state" id="empty-state" style="display:none;">
+    <div>🗃️</div>
+    <p><b>Sin artículos en este grupo.</b></p>
+  </div>
+</main>
+
+<div class="scan-toast" id="scan-toast"></div>
+<div id="toast"></div>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- ITEM SHEET -->
+<div class="sheet" id="item-sheet">
+  <div class="sheet-header">
+    <h2 id="item-sheet-title">Nuevo artículo</h2>
+    <button id="btn-close-item">✕</button>
+  </div>
+  <div class="sheet-body" id="item-form-fields"></div>
+</div>
+
+<!-- SETTINGS SHEET -->
+<div class="sheet" id="settings-sheet">
+  <div class="sheet-header">
+    <h2>⚙︎ Gestionar grupos</h2>
+    <button id="btn-close-settings">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="tabs">
+      <button class="tab active" data-tab="groups-tab">Grupos</button>
+      <button class="tab" data-tab="salones-tab">Salones</button>
+      <button class="tab" data-tab="settings-tab">Configuración</button>
+    </div>
+
+    <!-- GROUPS TAB -->
+    <div id="groups-tab" class="tab-content active">
+      <div id="groups-list"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="btn-new-group">➕ Nuevo grupo</button>
+      </div>
+    </div>
+
+    <!-- SALONES TAB -->
+    <div id="salones-tab" class="tab-content">
+      <div id="salones-list"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="btn-new-salon">➕ Nuevo salón</button>
+      </div>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div id="settings-tab" class="tab-content">
+      <div class="field">
+        <label for="setting-auto-backup">Auto-guardado</label>
+        <input type="checkbox" id="setting-auto-backup" checked style="width: auto;">
+        <div class="field-hint">Guarda automáticamente cambios cada 30 segundos</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PRESET EDITOR SHEET -->
+<div class="sheet" id="preset-editor-sheet">
+  <div class="sheet-header">
+    <h2 id="preset-editor-title">Editar grupo</h2>
+    <button id="btn-close-preset-editor">✕</button>
+  </div>
+  <div class="sheet-body" id="preset-editor-body"></div>
+</div>
+
+<!-- Hidden input for scanner -->
+<input type="text" id="scanner-input" autocomplete="off" autocapitalize="off" spellcheck="false" style="position: absolute; left: -9999px;">
+
+<script>
+  // ===== DATABASE =====
+  const DB_NAME = 'InventarioEscolar';
+  const DB_VERSION = 5;
+  let db, items = [], presets = [], salones = [], activePresetId = null, activeSalonNum = null;
+  let editingId = null;
+  let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
+
+  function initDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        db = req.result;
+        resolve();
+      };
+      req.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if(!d.objectStoreNames.contains('presets')) d.createObjectStore('presets', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('salones')) d.createObjectStore('salones', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('drafts')) d.createObjectStore('drafts', { keyPath: 'id' });
+      };
+    });
+  }
+
+  function idbPut(store, obj) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, 'readwrite');
+      const req = tx.objectStore(store).put(obj);
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+    });
+  }
+
+  function idbGetAll(store) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, 'readonly');
+      const req = tx.objectStore(store).getAll();
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => resolve(req.result);
+    });
+  }
+
+  function idbGet(store, key) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, 'readonly');
+      const req = tx.objectStore(store).get(key);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => resolve(req.result);
+    });
+  }
+
+  function idbDelete(store, key) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, 'readwrite');
+      const req = tx.objectStore(store).delete(key);
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+    });
+  }
+
+  // ===== UTILITIES =====
+  function escapeHTML(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function uuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  function todayISO() {
+    const d = new Date();
+    return d.toISOString().split('T')[0];
+  }
+
+  function showToast(msg, duration = 2000) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), duration);
+  }
+
+  function showScanToast(code) {
+    const el = document.getElementById('scan-toast');
+    el.textContent = `✓ ${code}`;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 1200);
+  }
+
+  // ===== INIT DATA =====
+  async function initData() {
+    console.log('Iniciando app...');
+    presets = await idbGetAll('presets');
+    items = await idbGetAll('items');
+    salones = await idbGetAll('salones');
+    
+    console.log('Salones cargados:', salones.length, salones);
+
+    if(salones.length === 0) {
+      console.log('Creando 32 salones...');
+      salones = Array.from({length: 32}, (_, i) => ({
+        id: 'salon_' + (i + 1),
+        numero: String(i + 1).padStart(3, '0'),
+        nombre: 'Salón ' + (i + 1)
+      }));
+      await Promise.all(salones.map(s => idbPut('salones', s)));
+      console.log('Salones creados:', salones.length);
+    }
+
+    if(presets.length === 0) {
+      presets = [
+        {
+          id: 'chromebooks',
+          name: 'Chromebooks',
+          icon: '💻',
+          fixedName: 'Chromebook',
+          fields: [
+            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
+            { key: 'serial', label: 'SERIAL', type: 'text', required: true, continuous: true },
+            { key: 'cantidad', label: 'Cantidad', type: 'number', default: 1, continuous: false },
+            { key: 'ubicacion', label: 'Ubicación', type: 'text', continuous: false },
+            { key: 'notas', label: 'Notas', type: 'textarea', continuous: false }
+          ]
+        },
+        {
+          id: 'smartboards',
+          name: 'Smartboards',
+          icon: '🖥️',
+          fixedName: 'Smartboard',
+          fields: [
+            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
+            { key: 'serial', label: 'SERIAL', type: 'text', required: true, continuous: true },
+            { key: 'ubicacion', label: 'Ubicación', type: 'text', continuous: false },
+            { key: 'notas', label: 'Notas', type: 'textarea', continuous: false }
+          ]
+        },
+        {
+          id: 'chromecarts',
+          name: 'ChromeCart',
+          icon: '🛒',
+          fixedName: 'ChromeCart',
+          fields: [
+            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
+            { key: 'cantidad', label: 'Cantidad Chromebooks', type: 'number', default: 1, continuous: false },
+            { key: 'ubicacion', label: 'Ubicación', type: 'text', continuous: false },
+            { key: 'notas', label: 'Notas', type: 'textarea', continuous: false }
+          ]
+        }
+      ];
+      await Promise.all(presets.map(p => idbPut('presets', p)));
+    }
+
+    activePresetId = presets[0]?.id || null;
+    activeSalonNum = salones[0]?.numero || null;
+    console.log('Inicialización completa:');
+    console.log('  Presets:', presets.length);
+    console.log('  Salones:', salones.length);
+    console.log('  Items:', items.length);
+    console.log('  ActiveSalonNum:', activeSalonNum);
+    render();
+  }
+
+  // ===== UI RENDERING =====
+  function getCurrentPreset() {
+    return presets.find(p => p.id === activePresetId) || presets[0];
+  }
+
+  function renderPresetBar() {
+    const bar = document.getElementById('preset-bar');
+    bar.innerHTML = '';
+    presets.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn' + (p.id === activePresetId ? ' active' : '');
+      btn.textContent = `${p.icon} ${p.name}`;
+      btn.onclick = () => {
+        activePresetId = p.id;
+        render();
+      };
+      bar.appendChild(btn);
+    });
+  }
+
+  function renderSalonesBar() {
+    const bar = document.getElementById('salones-bar');
+    console.log('renderSalonesBar: encontrado HTML, salones:', salones.length);
+    if(!bar) {
+      console.error('ERROR: #salones-bar no encontrado en HTML');
+      return;
+    }
+    bar.innerHTML = '';
+    
+    if(salones.length === 0) {
+      console.warn('Sin salones para renderizar');
+      return;
+    }
+
+    salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).forEach(s => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn' + (s.numero === activeSalonNum ? ' active' : '');
+      btn.textContent = `Salón ${s.numero}`;
+      btn.style.display = 'flex';  // Asegurar que se muestra
+      btn.onclick = () => {
+        activeSalonNum = s.numero;
+        render();
+      };
+      bar.appendChild(btn);
+    });
+
+    // Botón agregar salón
+    const btnAdd = document.createElement('button');
+    btnAdd.className = 'preset-btn';
+    btnAdd.textContent = '➕ Nuevo';
+    btnAdd.title = 'Agregar salón nuevo';
+    btnAdd.style.cssText = `
+      background: #10b981 !important;
+      color: #fff !important;
+      border-color: #10b981 !important;
+      font-weight: 700;
+      display: flex !important;
+    `;
+    btnAdd.onclick = () => {
+      const customName = prompt('Nombre del salón:\n(ej: Facultad, Educación Física, o número como 50)');
+      if(!customName || customName.trim() === '') {
+        return;
+      }
+      
+      const salonNum = customName.trim().padStart(3, '0');
+      if(salones.find(s => s.numero === salonNum)) {
+        showToast('⚠️ Salón ya existe');
+        return;
+      }
+
+      const newSalon = {
+        id: 'salon_' + Date.now(),
+        numero: salonNum,
+        nombre: `Salón ${salonNum}`
+      };
+      salones.push(newSalon);
+      idbPut('salones', newSalon).then(() => {
+        showToast('✓ Salón ' + salonNum + ' creado');
+        renderSalonesBar();
+      });
+    };
+    bar.appendChild(btnAdd);
+    console.log('✅ renderSalonesBar completado:', bar.children.length, 'botones');
+  }
+
+  function updateStats() {
+    const preset = getCurrentPreset();
+    const salon = salones.find(s => s.numero === activeSalonNum);
+    const count = items.filter(it => it.presetId === preset.id).length;
+    const salonCount = items.filter(it => it.presetId === preset.id && it.salon === activeSalonNum).length;
+    document.getElementById('stat-count').textContent = count;
+    document.getElementById('stat-preset').textContent = salonCount;
+  }
+
+  function renderList() {
+    const preset = getCurrentPreset();
+    const allItems = items.filter(it => it.presetId === preset.id && it.salon === activeSalonNum);
+    const container = document.getElementById('list-container');
+    const empty = document.getElementById('empty-state');
+
+    if(allItems.length === 0) {
+      container.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    container.innerHTML = '';
+
+    allItems.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'item-card';
+      const initials = (it.nombre || '?').trim().slice(0, 2).toUpperCase();
+      const subtext = `#${it.codigo || '?'}${it.notas ? ' • ' + it.notas.substring(0, 20) : ''}`;
+      card.innerHTML = `
+        <div class="thumb">${initials}</div>
+        <div class="info">
+          <div class="title">${escapeHTML(it.nombre || '(sin nombre)')}</div>
+          <div class="sub">${escapeHTML(subtext)}</div>
+        </div>
+      `;
+      card.onclick = () => openItemSheet(it.id);
+      container.appendChild(card);
+    });
+  }
+
+  function render() {
+    renderPresetBar();
+    renderSalonesBar();
+    updateStats();
+    renderList();
+  }
+
+  // ===== SCANNING =====
+  function stopScanning() {
+    scanMode = false;
+    document.getElementById('scanning-banner').classList.remove('show');
+    document.getElementById('scan-button-wrap').classList.remove('hidden');
+    showToast('Escaneo cancelado');
+    render();
+  }
+
+  function startScanning() {
+    const preset = getCurrentPreset();
+    scanFields = preset.fields.filter(f => f.continuous);
+    
+    if(scanFields.length === 0) {
+      showToast('Sin campos para escanear');
+      return;
+    }
+
+    scanMode = true;
+    currentScanIdx = 0;
+    currentScanData = { presetId: preset.id, salon: activeSalonNum };
+    if(preset.fixedName) currentScanData.nombre = preset.fixedName;
+
+    document.getElementById('scanning-banner').classList.add('show');
+    document.getElementById('scan-button-wrap').classList.add('hidden');
+    
+    updateScanningBanner();
+    
+    const inp = document.getElementById('scanner-input');
+    inp.value = '';
+    inp.focus();
+  }
+
+  function updateScanningBanner() {
+    const field = scanFields[currentScanIdx];
+    if(!field) return;
+    document.getElementById('banner-field-name').textContent = field.label;
+    document.getElementById('banner-field-value').textContent = 'Escribiendo...';
+    document.getElementById('banner-progress').textContent = `Campo ${currentScanIdx + 1} de ${scanFields.length}`;
+  }
+
+  function processScanCode(code) {
+    if(!scanMode || currentScanIdx >= scanFields.length) return;
+
+    const field = scanFields[currentScanIdx];
+    currentScanData[field.key] = code.trim();
+
+    if(navigator.vibrate) navigator.vibrate([70, 50, 70]);
+
+    document.getElementById('banner-field-value').textContent = code.trim();
+    showScanToast(code.trim());
+
+    currentScanIdx++;
+    
+    if(currentScanIdx < scanFields.length) {
+      setTimeout(() => {
+        updateScanningBanner();
+        document.getElementById('scanner-input').value = '';
+        document.getElementById('scanner-input').focus();
+        if(navigator.vibrate) navigator.vibrate(100);
+      }, 800);
+    } else {
+      setTimeout(() => {
+        document.getElementById('scanning-banner').classList.remove('show');
+        document.getElementById('scan-button-wrap').classList.remove('hidden');
+        scanMode = false;
+        openItemSheet(null, currentScanData);
+      }, 800);
+    }
+  }
+
+  // ===== FORM =====
+  function buildFieldInput(f, value) {
+    const id = 'f_' + f.key;
+    let html = `<div class="field ${f.required ? 'required' : ''}"><label for="${id}">${escapeHTML(f.label)}</label>`;
+    const val = value == null ? '' : value;
+
+    if(f.type === 'textarea') {
+      html += `<textarea id="${id}" data-key="${f.key}" placeholder="Escribe aquí...">${escapeHTML(val)}</textarea>`;
+    } else if(f.type === 'select') {
+      html += `<select id="${id}" data-key="${f.key}"><option value="">—</option>`;
+      (f.options || []).forEach(opt => {
+        html += `<option value="${escapeHTML(opt)}" ${val === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>`;
+      });
+      html += `</select>`;
+    } else if(f.type === 'number') {
+      html += `<input type="number" inputmode="decimal" id="${id}" data-key="${f.key}" value="${escapeHTML(val)}" placeholder="0">`;
+    } else if(f.type === 'date') {
+      html += `<input type="date" id="${id}" data-key="${f.key}" value="${escapeHTML(val)}">`;
+    } else {
+      html += `<input type="text" id="${id}" data-key="${f.key}" value="${escapeHTML(val)}" placeholder="Escribe aquí...">`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function openItemSheet(id, prefill) {
+    editingId = id || null;
+    const preset = getCurrentPreset();
+    const item = id ? items.find(it => it.id === id) : (prefill || {});
+
+    document.getElementById('item-sheet-title').textContent = id ? 'Editar artículo' : 'Nuevo artículo';
+    
+    let html = '';
+    preset.fields.forEach(f => {
+      let val = item[f.key];
+      if(val == null && !id) {
+        if(f.default === 'today') val = todayISO();
+        else if(f.default != null) val = f.default;
+      }
+      html += buildFieldInput(f, val);
+    });
+
+    // Agregar campo de salón (obligatorio)
+    html += `
+      <div class="field required">
+        <label for="f_salon">Salón</label>
+        <select id="f_salon" data-key="salon">
+          <option value="">— Selecciona salón</option>
+    `;
+    salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).forEach(s => {
+      const selected = item.salon === s.numero ? 'selected' : '';
+      html += `<option value="${s.numero}" ${selected}>Salón ${s.numero}</option>`;
+    });
+    html += `
+        </select>
+      </div>
+    `;
+
+    html += `<div class="btn-row"><button class="btn primary" id="btn-save-item">Guardar</button></div>`;
+    if(id) {
+      html += `<div class="btn-row"><button class="btn danger" id="btn-delete-item">🗑 Eliminar</button></div>`;
+    }
+
+    document.getElementById('item-form-fields').innerHTML = html;
+    document.getElementById('btn-save-item').onclick = saveItemFromForm;
+    if(id) {
+      document.getElementById('btn-delete-item').onclick = () => {
+        if(confirm('¿Eliminar este artículo?')) deleteItem(id);
+      };
+    }
+
+    showSheet('item-sheet');
+  }
+
+  function saveItemFromForm() {
+    const preset = getCurrentPreset();
+    const obj = editingId ? items.find(it => it.id === editingId) : { id: uuid(), presetId: preset.id, createdAt: new Date().toISOString() };
+    
+    let hasError = false;
+    preset.fields.forEach(f => {
+      const el = document.getElementById('f_' + f.key);
+      if(!el) return;
+      const val = el.value.trim();
+      if(f.required && !val) {
+        hasError = true;
+        el.style.borderColor = 'var(--danger)';
+      } else {
+        el.style.borderColor = '';
+      }
+      if(f.type === 'number') obj[f.key] = val ? parseFloat(val) : null;
+      else obj[f.key] = val || null;
+    });
+
+    // Validar salón
+    const salonEl = document.getElementById('f_salon');
+    const salonVal = salonEl?.value.trim();
+    if(!salonVal) {
+      hasError = true;
+      if(salonEl) salonEl.style.borderColor = 'var(--danger)';
+    } else {
+      obj.salon = salonVal;
+      if(salonEl) salonEl.style.borderColor = '';
+    }
+
+    if(hasError) {
+      showToast('⚠️ Completa campos requeridos');
+      return;
+    }
+
+    obj.updatedAt = new Date().toISOString();
+    
+    const idx = items.findIndex(it => it.id === obj.id);
+    if(idx >= 0) items[idx] = obj;
+    else items.push(obj);
+
+    idbPut('items', obj).then(() => {
+      closeSheet('item-sheet');
+      showToast('✓ Guardado');
+      render();
+    });
+  }
+
+  function deleteItem(id) {
+    items = items.filter(it => it.id !== id);
+    idbDelete('items', id).then(() => {
+      closeSheet('item-sheet');
+      showToast('🗑 Eliminado');
+      render();
+    });
+  }
+
+  // ===== PRESETS MANAGEMENT =====
+  function openSettingsSheet() {
+    renderGroupsList();
+    renderSalonesList();
+    setupSalonesTab();
+    showSheet('settings-sheet');
+  }
+
+  function renderGroupsList() {
+    const list = document.getElementById('groups-list');
+    list.innerHTML = '';
+    presets.forEach(p => {
+      const count = items.filter(it => it.presetId === p.id).length;
+      const div = document.createElement('div');
+      div.className = 'preset-item';
+      div.innerHTML = `
+        <div class="info">
+          <div class="name">${p.icon} ${escapeHTML(p.name)}</div>
+          <div class="desc">${p.fields.filter(f => f.continuous).length} campos escaneo • ${count} artículos</div>
+        </div>
+        <div class="actions">
+          <button class="btn secondary small" id="edit-${p.id}">✏️</button>
+          <button class="btn danger small" id="del-${p.id}">✕</button>
+        </div>
+      `;
+      list.appendChild(div);
+      document.getElementById(`edit-${p.id}`).onclick = () => editPreset(p.id);
+      document.getElementById(`del-${p.id}`).onclick = () => deletePreset(p.id);
+    });
+
+    // Agregar botón "Nuevo grupo"
+    const btnNewGroup = document.getElementById('btn-new-group');
+    if(btnNewGroup) {
+      btnNewGroup.onclick = newPreset;
+    }
+  }
+
+  function renderSalonesList() {
+    const list = document.getElementById('salones-list');
+    if(!list) return;
+    list.innerHTML = '';
+    salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
+    salones.forEach(s => {
+      const count = items.filter(it => it.salon === s.numero).length;
+      const div = document.createElement('div');
+      div.className = 'preset-item';
+      div.innerHTML = `
+        <div class="info">
+          <div class="name">Salón ${escapeHTML(s.numero)}</div>
+          <div class="desc">${count} artículos</div>
+        </div>
+        <div class="actions">
+          <button class="btn danger small" id="del-salon-${s.id}">✕</button>
+        </div>
+      `;
+      list.appendChild(div);
+      document.getElementById(`del-salon-${s.id}`).onclick = () => deleteSalon(s.id);
+    });
+  }
+
+  function newSalon() {
+    const num = prompt('Número del salón:');
+    if(!num || num.trim() === '') return;
+    
+    const salonNum = num.trim().padStart(3, '0');
+    if(salones.find(s => s.numero === salonNum)) {
+      showToast('⚠️ Salón ya existe');
+      return;
+    }
+
+    const newSalon = {
+      id: 'salon_' + Date.now(),
+      numero: salonNum,
+      nombre: 'Salón ' + salonNum
+    };
+    salones.push(newSalon);
+    idbPut('salones', newSalon).then(() => {
+      showToast('✓ Salón ' + salonNum + ' creado');
+      renderSalonesList();
+    });
+  }
+
+  function deleteSalon(salonId) {
+    const salon = salones.find(s => s.id === salonId);
+    if(!salon) return;
+    if(!confirm('¿Eliminar Salón ' + salon.numero + '?\n\n⚠️ Se eliminarán todos sus artículos')) return;
+    
+    const itemsToDelete = items.filter(it => it.salon === salon.numero);
+    salones = salones.filter(s => s.id !== salonId);
+    items = items.filter(it => it.salon !== salon.numero);
+
+    Promise.all([
+      idbDelete('salones', salonId),
+      ...itemsToDelete.map(it => idbDelete('items', it.id))
+    ]).then(() => {
+      showToast('🗑 Salón eliminado');
+      render();
+      renderSalonesList();
+    });
+  }
+
+  // Event listeners para salones
+  function setupSalonesTab() {
+    const btnNewSalon = document.getElementById('btn-new-salon');
+    if(btnNewSalon) btnNewSalon.onclick = newSalon;
+  }
+
+  function newPreset() {
+    const newPresetObj = {
+      id: 'preset_' + Date.now(),
+      name: 'Nuevo grupo',
+      icon: '📦',
+      fixedName: '',
+      fields: [
+        { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
+        { key: 'ubicacion', label: 'Ubicación', type: 'text', required: false, continuous: false }
+      ]
+    };
+    presets.push(newPresetObj);
+    idbPut('presets', newPresetObj).then(() => {
+      editPreset(newPresetObj.id);
+    });
+  }
+
+  function editPreset(presetId) {
+    const preset = presets.find(p => p.id === presetId);
+    if(!preset) return;
+
+    document.getElementById('preset-editor-title').textContent = `Editar: ${preset.icon} ${preset.name}`;
+    
+    let html = `
+      <div class="field required">
+        <label>Nombre del grupo</label>
+        <input type="text" id="preset-name" value="${escapeHTML(preset.name)}">
+      </div>
+
+      <div class="field required">
+        <label>Emoji</label>
+        <input type="text" id="preset-icon" value="${preset.icon}" style="font-size: 24px; text-align: center;">
+      </div>
+
+      <div class="field required">
+        <label>Nombre fijo en artículos</label>
+        <input type="text" id="preset-fixed-name" value="${escapeHTML(preset.fixedName || '')}">
+        <div class="field-hint">Se pre-llena automáticamente en cada artículo</div>
+      </div>
+
+      <h3 style="margin-top: 24px; margin-bottom: 12px;">Campos del grupo</h3>
+      <div id="preset-fields-list"></div>
+
+      <div class="btn-row" style="margin-bottom: 12px;">
+        <button class="btn secondary" id="btn-add-field" style="flex: 1;">➕ Agregar campo</button>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn primary" id="btn-save-preset">Guardar cambios</button>
+        <button class="btn secondary" id="btn-cancel-preset">Cancelar</button>
+      </div>
+    `;
+
+    document.getElementById('preset-editor-body').innerHTML = html;
+
+    // Render fields
+    const fieldsList = document.getElementById('preset-fields-list');
+    const renderFields = () => {
+      fieldsList.innerHTML = '';
+      preset.fields.forEach((f, idx) => {
+        const fieldDiv = document.createElement('div');
+        fieldDiv.style.cssText = 'background: var(--bg-light); padding: 12px; border-radius: 8px; margin-bottom: 10px;';
+        fieldDiv.innerHTML = `
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <div style="flex: 1;">
+              <div class="field" style="margin-bottom: 8px;">
+                <label>Etiqueta</label>
+                <input type="text" class="field-label" value="${escapeHTML(f.label)}" data-idx="${idx}">
+              </div>
+              <div class="field" style="margin-bottom: 0;">
+                <label>Tipo</label>
+                <select class="field-type" data-idx="${idx}">
+                  <option value="text" ${f.type === 'text' ? 'selected' : ''}>Texto</option>
+                  <option value="number" ${f.type === 'number' ? 'selected' : ''}>Número</option>
+                  <option value="select" ${f.type === 'select' ? 'selected' : ''}>Seleccionar</option>
+                  <option value="date" ${f.type === 'date' ? 'selected' : ''}>Fecha</option>
+                  <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Texto largo</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn danger small" id="del-field-${idx}" style="align-self: flex-end; height: 36px;">🗑</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <label style="flex: 1; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" class="field-continuous" data-idx="${idx}" ${f.continuous ? 'checked' : ''}>
+              Escanear
+            </label>
+            <label style="flex: 1; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" class="field-required" data-idx="${idx}" ${f.required ? 'checked' : ''}>
+              Obligatorio
+            </label>
+          </div>
+        `;
+        fieldsList.appendChild(fieldDiv);
+        document.getElementById(`del-field-${idx}`).onclick = () => {
+          preset.fields.splice(idx, 1);
+          renderFields();
+        };
+      });
+    };
+
+    renderFields();
+
+    document.getElementById('btn-add-field').onclick = () => {
+      preset.fields.push({
+        key: 'field_' + Date.now(),
+        label: 'Nuevo campo',
+        type: 'text',
+        required: false,
+        continuous: false
+      });
+      renderFields();
+    };
+
+    document.getElementById('btn-save-preset').onclick = () => savePresetChanges(presetId);
+    document.getElementById('btn-cancel-preset').onclick = () => closeSheet('preset-editor-sheet');
+
+    showSheet('preset-editor-sheet');
+  }
+
+  function savePresetChanges(presetId) {
+    const preset = presets.find(p => p.id === presetId);
+    if(!preset) return;
+
+    preset.name = document.getElementById('preset-name').value.trim();
+    preset.icon = document.getElementById('preset-icon').value.trim() || '📦';
+    preset.fixedName = document.getElementById('preset-fixed-name').value.trim();
+
+    // Update fields
+    const labels = document.querySelectorAll('.field-label');
+    const types = document.querySelectorAll('.field-type');
+    preset.fields.forEach((f, idx) => {
+      f.label = labels[idx]?.value.trim() || f.label;
+      f.type = types[idx]?.value || 'text';
+      f.continuous = document.querySelector(`.field-continuous[data-idx="${idx}"]`)?.checked || false;
+      f.required = document.querySelector(`.field-required[data-idx="${idx}"]`)?.checked || false;
+    });
+
+    idbPut('presets', preset).then(() => {
+      closeSheet('preset-editor-sheet');
+      showToast('✓ Grupo actualizado');
+      render();
+      openSettingsSheet();
+    });
+  }
+
+  function deletePreset(presetId) {
+    if(!confirm('¿Eliminar este grupo?\n\n⚠️ Se eliminarán todos sus artículos')) return;
+    
+    const itemsToDelete = items.filter(it => it.presetId === presetId);
+    presets = presets.filter(p => p.id !== presetId);
+    items = items.filter(it => it.presetId !== presetId);
+    activePresetId = presets[0]?.id || null;
+
+    Promise.all([
+      idbDelete('presets', presetId),
+      ...itemsToDelete.map(it => idbDelete('items', it.id))
+    ]).then(() => {
+      closeSheet('preset-editor-sheet');
+      showToast('🗑 Grupo eliminado');
+      render();
+      openSettingsSheet();
+    });
+  }
+
+  // ===== SHEETS =====
+  function showSheet(id) {
+    document.getElementById('backdrop').classList.add('show');
+    document.getElementById(id).classList.add('show');
+  }
+
+  function closeSheet(id) {
+    document.getElementById('backdrop').classList.remove('show');
+    document.getElementById(id).classList.remove('show');
+  }
+
+  // ===== EVENTS =====
+  document.getElementById('btn-close-item').onclick = () => closeSheet('item-sheet');
+  document.getElementById('btn-close-settings').onclick = () => closeSheet('settings-sheet');
+  document.getElementById('btn-close-preset-editor').onclick = () => closeSheet('preset-editor-sheet');
+  document.getElementById('backdrop').onclick = () => {
+    if(document.getElementById('item-sheet').classList.contains('show')) closeSheet('item-sheet');
+    else if(document.getElementById('settings-sheet').classList.contains('show')) closeSheet('settings-sheet');
+    else if(document.getElementById('preset-editor-sheet').classList.contains('show')) closeSheet('preset-editor-sheet');
+  };
+
+  document.getElementById('btn-scan').onclick = startScanning;
+  document.getElementById('btn-manual-code').onclick = startScanning;
+  document.getElementById('btn-settings').onclick = openSettingsSheet;
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.tab).classList.add('active');
+    };
+  });
+
+  // Scanner
+  const scannerInput = document.getElementById('scanner-input');
+  
+  // Botón cancelar escaneo
+  document.getElementById('btn-cancel-scan').addEventListener('click', () => {
+    stopScanning();
+  });
+
+  scannerInput.addEventListener('keydown', (e) => {
+    if(!scanMode) return;
+    if(e.key === 'Enter') {
+      e.preventDefault();
+      const code = scannerInput.value.trim();
+      if(code) {
+        processScanCode(code);
+        scannerInput.value = '';
+      }
+    }
+  });
+
+  document.addEventListener('focusout', (e) => {
+    if(scanMode && e.target !== scannerInput) {
+      setTimeout(() => scannerInput.focus(), 10);
+    }
+  });
+
+  // Export
+  document.getElementById('btn-export').onclick = () => {
+    if(items.length === 0) { showToast('Sin datos'); return; }
+    
+    // Cargar SheetJS si no está
+    if(!window.XLSX) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js';
+      script.onload = () => exportToExcel();
+      document.head.appendChild(script);
+    } else {
+      exportToExcel();
+    }
+  };
+
+  function exportToExcel() {
+    const wb = XLSX.utils.book_new();
+    
+    // Agrupar items por salón
+    const itemsBySalon = {};
+    salones.forEach(s => {
+      itemsBySalon[s.numero] = [];
+    });
+    items.forEach(it => {
+      if(it.salon && itemsBySalon[it.salon]) {
+        itemsBySalon[it.salon].push(it);
+      }
+    });
+
+    // Crear una hoja por salón
+    salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).forEach(salon => {
+      const salonItems = itemsBySalon[salon.numero] || [];
+      const data = [];
+      
+      // Headers
+      const headers = ['Tipo Equipo', 'Nombre', 'Código', 'Serial', 'Cantidad', 'Ubicación', 'Notas', 'Fecha'];
+      data.push(headers);
+
+      // Rows
+      salonItems.forEach(it => {
+        const preset = presets.find(p => p.id === it.presetId);
+        const row = [
+          preset?.name || 'Desconocido',
+          it.nombre || '',
+          it.codigo || '',
+          it.serial || '',
+          it.cantidad || '',
+          it.ubicacion || '',
+          it.notas || '',
+          it.createdAt ? it.createdAt.split('T')[0] : ''
+        ];
+        data.push(row);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [
+        { wch: 15 },  // Tipo Equipo
+        { wch: 20 },  // Nombre
+        { wch: 15 },  // Código
+        { wch: 15 },  // Serial
+        { wch: 10 },  // Cantidad
+        { wch: 20 },  // Ubicación
+        { wch: 30 },  // Notas
+        { wch: 12 }   // Fecha
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, ws, `Salón ${salon.numero}`);
+    });
+
+    // Hoja de TOTALES
+    const totalesData = [];
+    const headers = ['Tipo Equipo', 'Cantidad Total'];
+    totalesData.push(headers);
+
+    const countByType = {};
+    presets.forEach(p => {
+      countByType[p.name] = 0;
+    });
+    
+    items.forEach(it => {
+      const preset = presets.find(p => p.id === it.presetId);
+      if(preset) {
+        countByType[preset.name] += (it.cantidad || 1);
+      }
+    });
+
+    Object.entries(countByType).forEach(([type, count]) => {
+      totalesData.push([type, count]);
+    });
+
+    // Fila de total general
+    totalesData.push(['TOTAL GENERAL', Object.values(countByType).reduce((a, b) => a + b, 0)]);
+
+    const wsTotales = XLSX.utils.aoa_to_sheet(totalesData);
+    wsTotales['!cols'] = [{ wch: 20 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsTotales, 'TOTALES');
+
+    // Descargar
+    XLSX.writeFile(wb, `Inventario_${todayISO()}.xlsx`);
+    showToast('✓ Exportado a Excel');
+  }
+
+  // Init
+  console.log('🚀 Iniciando Inventario Escolar Pro...');
+  initDB().then(() => {
+    console.log('✅ Base de datos inicializada');
+    initData();
+  }).catch(err => {
+    console.error('❌ Error en inicialización:', err);
+  });
+</script>
+
+</body>
+</html>
