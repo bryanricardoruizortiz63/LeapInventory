@@ -1,6 +1,6 @@
 # ☁︎ Sincronización en la nube
 
-LeapInventory puede compartir el mismo inventario entre varios dispositivos
+B Scan Inventory puede compartir el mismo inventario entre varios dispositivos
 usando un backend en Supabase ya creado y conectado a la app (no necesitas
 crear ni configurar nada tú mismo).
 

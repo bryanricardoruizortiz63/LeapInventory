@@ -1,6 +1,6 @@
 {
-  "name": "LeapInventory",
-  "short_name": "LeapInventory",
+  "name": "B Scan Inventory",
+  "short_name": "B Scan",
   "description": "Inventario con escaneo de códigos de barras por cámara o lector Bluetooth, proyectos y campos personalizados, y sincronización en la nube",
   "start_url": "./index.html",
   "scope": "./",

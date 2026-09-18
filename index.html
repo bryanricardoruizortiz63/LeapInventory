@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>LeapInventory - Escáner de inventario</title>
+<title>B Scan Inventory - Escáner de inventario</title>
 
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#1e40af">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="LeapInventory">
+<meta name="apple-mobile-web-app-title" content="B Scan Inventory">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="icon" href="./icons/icon-192.png">
 
@@ -691,7 +691,7 @@
 <body>
 
 <header>
-  <h1 id="app-title">📦 LeapInventory</h1>
+  <h1 id="app-title">📦 B Scan Inventory</h1>
   <button id="btn-sync-now" title="Sincronizar">☁︎<span class="sync-dot" id="sync-dot"></span></button>
   <button id="btn-export" title="Exportar">⬇︎</button>
   <button id="btn-settings" title="Ajustes">⚙︎</button>
@@ -1320,60 +1320,15 @@
     items.push(newItem);
     idbPut('items', newItem).then(() => {
       markItemDirty(newItem.id);
-      showToast(`✓ ${project.name} - ${scanData.codigo || 'guardado'}`);
-      showQuickOptions(newItem);
       render();
     });
+
+    // El escaneo continúa de inmediato; el aviso es informativo y no bloquea.
+    showLastScannedBar(newItem, project);
+    resumeScanningForNextItem();
   }
 
-  function showQuickOptions(item) {
-    document.getElementById('quick-options-popup')?.remove();
-    const project = projects.find(p => p.id === item.projectId);
-
-    const popup = document.createElement('div');
-    popup.id = 'quick-options-popup';
-    popup.style.cssText = `
-      position: fixed; bottom: 100px; left: 20px; right: 20px;
-      background: linear-gradient(135deg, #10b981, #059669); color: white;
-      padding: 16px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-      z-index: 9999; text-align: center; animation: slideUp 0.3s ease-out;
-    `;
-    popup.innerHTML = `
-      <div style="font-weight: bold; margin-bottom: 12px; font-size: 16px;">
-        ✓ ${escapeHTML(project?.name || '')} - ${escapeHTML(item.data.codigo || 'Guardado')}
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-        <button id="qo-continue" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">📱 Continuar</button>
-        <button id="qo-change" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">📦 Cambiar</button>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-        <button id="qo-edit" style="padding: 8px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">✏️ Editar</button>
-        <button id="qo-delete" style="padding: 8px; background: rgba(255,0,0,0.35); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🗑️ Borrar</button>
-      </div>
-      <div style="font-size: 12px; opacity: 0.8;" id="auto-continue-timer">Auto-continúa en 3s...</div>
-    `;
-    document.body.appendChild(popup);
-
-    let seconds = 3;
-    const timerEl = document.getElementById('auto-continue-timer');
-    const timerInterval = setInterval(() => {
-      seconds--;
-      if(timerEl) timerEl.textContent = `Auto-continúa en ${seconds}s...`;
-      if(seconds <= 0) { clearInterval(timerInterval); continueScanQuick(); }
-    }, 1000);
-
-    const stopTimer = () => clearInterval(timerInterval);
-    document.getElementById('qo-continue').onclick = () => { stopTimer(); continueScanQuick(); };
-    document.getElementById('qo-change').onclick = () => { stopTimer(); changeTypeQuick(); };
-    document.getElementById('qo-edit').onclick = () => { stopTimer(); popup.remove(); stopScanning(); openItemSheet(item.id); };
-    document.getElementById('qo-delete').onclick = () => {
-      stopTimer();
-      if(confirm('¿Eliminar este artículo?')) { deleteItem(item.id); popup.remove(); }
-    };
-  }
-
-  function continueScanQuick() {
-    document.getElementById('quick-options-popup')?.remove();
+  function resumeScanningForNextItem() {
     currentScanData = {};
     currentScanIdx = 0;
     const project = getCurrentProject();
@@ -1390,14 +1345,38 @@
     if(cameraModeActive) resumeCameraForNextField();
   }
 
-  function changeTypeQuick() {
+  function showLastScannedBar(item, project) {
     document.getElementById('quick-options-popup')?.remove();
-    stopScanning();
-    render();
-  }
 
-  function editItemQuick(itemId) { openItemSheet(itemId); }
-  function deleteItemQuick(itemId) { if(confirm('¿Eliminar este artículo?')) deleteItem(itemId); }
+    const popup = document.createElement('div');
+    popup.id = 'quick-options-popup';
+    popup.style.cssText = `
+      position: fixed; bottom: calc(100px + var(--safe-bottom)); left: 20px; right: 20px;
+      background: linear-gradient(135deg, #10b981, #059669); color: white;
+      padding: 10px 12px; border-radius: 10px; box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      z-index: 9999; display: flex; align-items: center; gap: 8px;
+      animation: slideUp 0.25s ease-out;
+    `;
+    popup.innerHTML = `
+      <div style="flex: 1; min-width: 0; font-weight: bold; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        ✓ ${escapeHTML(project?.name || '')} - ${escapeHTML(item.data.codigo || 'Guardado')}
+      </div>
+      <button id="qo-edit" style="flex-shrink:0; padding: 8px 10px; background: rgba(255,255,255,0.25); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px;">✏️ Editar</button>
+      <button id="qo-delete" style="flex-shrink:0; padding: 8px 10px; background: rgba(255,0,0,0.35); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px;">🗑️ Borrar</button>
+    `;
+    document.body.appendChild(popup);
+
+    const dismissTimer = setTimeout(() => popup.remove(), 2500);
+
+    document.getElementById('qo-edit').onclick = () => {
+      clearTimeout(dismissTimer); popup.remove();
+      stopScanning(); openItemSheet(item.id);
+    };
+    document.getElementById('qo-delete').onclick = () => {
+      clearTimeout(dismissTimer); popup.remove();
+      if(confirm('¿Eliminar este artículo?')) deleteItem(item.id);
+    };
+  }
 
   // ===== CAMERA SCANNING =====
   function ensureHtml5Qrcode() {
@@ -2036,7 +2015,7 @@
       wsResumen['!cols'] = [{ wch: 30 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, wsResumen, 'RESUMEN');
 
-      XLSX.writeFile(wb, `LeapInventory_${todayISO()}.xlsx`);
+      XLSX.writeFile(wb, `BScanInventory_${todayISO()}.xlsx`);
       showToast('✓ Exportado a Excel');
     } catch(err) {
       console.error(err);
@@ -2080,7 +2059,7 @@
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `LeapInventory_${todayISO()}.csv`;
+    a.href = url; a.download = `BScanInventory_${todayISO()}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
     showToast('✓ Exportado a CSV');
@@ -2092,7 +2071,7 @@
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `LeapInventory_backup_${todayISO()}.json`;
+    a.href = url; a.download = `BScanInventory_backup_${todayISO()}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
     showToast('✓ Respaldo JSON descargado');
