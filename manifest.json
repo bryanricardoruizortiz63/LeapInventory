@@ -1,7 +1,7 @@
 {
-  "name": "Inventario Escolar Leap",
-  "short_name": "Inventario",
-  "description": "Gestiona inventario escolar por grupos con escaneo de códigos de barras",
+  "name": "LeapInventory",
+  "short_name": "LeapInventory",
+  "description": "Inventario con escaneo de códigos de barras por cámara o lector Bluetooth, proyectos y campos personalizados, y sincronización en la nube",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

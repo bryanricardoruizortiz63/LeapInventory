@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Inventario Escolar Pro - Scanner</title>
+<title>LeapInventory - Escáner de inventario</title>
 
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#1e40af">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Inventario">
+<meta name="apple-mobile-web-app-title" content="LeapInventory">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="icon" href="./icons/icon-192.png">
 
@@ -56,14 +56,17 @@
     padding: calc(14px + var(--safe-top)) 16px 14px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     box-shadow: 0 2px 12px rgba(15,23,42,.15);
   }
   header h1 {
-    font-size: 19px;
+    font-size: 18px;
     margin: 0;
     font-weight: 700;
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   header button {
     background: rgba(255,255,255,.16);
@@ -78,8 +81,23 @@
     font-size: 18px;
     cursor: pointer;
     transition: background 0.2s;
+    flex-shrink: 0;
+    position: relative;
   }
   header button:active { background: rgba(255,255,255,.25); }
+  .sync-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted);
+    border: 1.5px solid var(--primary);
+  }
+  .sync-dot.on { background: var(--success); }
+  .sync-dot.busy { background: var(--warning); }
+  .sync-dot.err { background: var(--danger); }
 
   .preset-bar {
     background: #fff;
@@ -90,6 +108,7 @@
     overflow-x: auto;
     scrollbar-width: none;
   }
+  .preset-bar.hidden { display: none; }
   .preset-bar::-webkit-scrollbar { display: none; }
   .preset-btn {
     flex: 0 0 auto;
@@ -113,6 +132,10 @@
     color: #fff;
     border-color: var(--primary);
   }
+  .preset-btn.add {
+    border-style: dashed;
+    color: var(--muted);
+  }
 
   .summary {
     background: #fff;
@@ -126,6 +149,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
   }
   .stat .n {
     font-size: 24px;
@@ -135,6 +159,9 @@
   .stat .l {
     font-size: 12px;
     color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   main {
@@ -176,6 +203,12 @@
     transition: transform 0.2s;
   }
   .scan-button:active { transform: scale(0.98); }
+  .scan-button.ghost {
+    background: #fff;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    box-shadow: none;
+  }
 
   .item-card {
     background: #fff;
@@ -202,7 +235,9 @@
     font-weight: 700;
     font-size: 14px;
     flex-shrink: 0;
+    overflow: hidden;
   }
+  .item-card .thumb img { width: 100%; height: 100%; object-fit: cover; }
   .item-card .info {
     flex: 1;
     min-width: 0;
@@ -214,7 +249,20 @@
   .item-card .sub {
     font-size: 12px;
     color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+  .item-card .badges { display: flex; gap: 4px; flex-shrink: 0; font-size: 13px; }
+  .group-heading {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 18px 4px 8px;
+  }
+  .group-heading:first-child { margin-top: 0; }
 
   .scanning-mode-banner {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -424,6 +472,9 @@
     padding: 16px;
     border-bottom: 1px solid var(--border);
     gap: 12px;
+    position: sticky;
+    top: 0;
+    background: #fff;
   }
   .sheet-header h2 {
     margin: 0;
@@ -461,6 +512,8 @@
     display: none;
     z-index: 99;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    max-width: 90vw;
+    text-align: center;
   }
   #toast.show { display: block; }
 
@@ -472,18 +525,22 @@
     gap: 0;
     border-bottom: 1.5px solid var(--border);
     margin-bottom: 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab {
-    flex: 1;
-    padding: 12px;
+    flex: 1 0 auto;
+    padding: 12px 10px;
     background: none;
     border: none;
     color: var(--text-soft);
     font-weight: 600;
-    font-size: 14px;
+    font-size: 13px;
     cursor: pointer;
     border-bottom: 3px solid transparent;
     transition: all 0.2s;
+    white-space: nowrap;
   }
   .tab.active {
     color: var(--primary);
@@ -534,17 +591,99 @@
     font-size: 13px;
     color: #b45309;
   }
+  .info-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #1e40af;
+    line-height: 1.5;
+  }
 
-  /* Draft indicator */
-  .draft-indicator {
-    display: inline-block;
-    background: var(--warning);
-    color: #fff;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    margin-left: 8px;
+  /* Field editor (options chips) */
+  .chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .chip {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 8px 5px 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chip button {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0;
+  }
+  .chip.group { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
+
+  /* Photo field */
+  .photo-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .photo-thumb {
+    width: 72px; height: 72px; border-radius: 10px; object-fit: cover;
+    border: 1.5px solid var(--border);
+  }
+  .photo-placeholder {
+    width: 72px; height: 72px; border-radius: 10px; border: 1.5px dashed var(--border);
+    display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 24px;
+  }
+
+  /* GPS field */
+  .gps-readout {
+    background: var(--bg-light); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 12px; font-size: 13px; color: var(--text-soft); margin-top: 6px;
+  }
+  .gps-readout a { color: var(--primary); font-weight: 600; }
+
+  /* History */
+  .history-list { list-style: none; margin: 0; padding: 0; }
+  .history-list li {
+    font-size: 12.5px; color: var(--text-soft); padding: 8px 0; border-bottom: 1px solid var(--border);
+  }
+  .history-list li:last-child { border-bottom: none; }
+  .history-list .when { color: var(--muted); font-size: 11px; }
+
+  /* Export checklist */
+  .check-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .check-row:last-child { border-bottom: none; }
+  .check-row input { width: auto; }
+  .check-row label { margin: 0; font-weight: 500; font-size: 14px; flex: 1; }
+
+  /* Sync tab */
+  .code-display {
+    font-family: 'Courier New', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-align: center;
+    padding: 14px;
+    background: var(--bg-light);
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 10px;
+  }
+  .sync-status-line {
+    font-size: 13px; color: var(--text-soft); text-align: center; margin-bottom: 14px;
+  }
+
+  /* Camera overlay */
+  .camera-overlay {
+    position: fixed; inset: 0; background: #000; z-index: 70;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  #qr-reader { width: 100%; max-width: 480px; }
+  #qr-reader video { border-radius: 12px; }
+  .camera-hint {
+    color: #fff; font-size: 14px; margin-top: 16px; text-align: center; padding: 0 20px;
+  }
+  .camera-close-btn {
+    margin-top: 20px; background: rgba(255,255,255,.2); color: #fff; border: 1.5px solid rgba(255,255,255,.5);
+    padding: 12px 24px; border-radius: 999px; font-weight: 600; font-size: 14px; cursor: pointer;
   }
 </style>
 
@@ -552,34 +691,33 @@
 <body>
 
 <header>
-  <h1>📦 Inventario Escolar Pro</h1>
+  <h1 id="app-title">📦 LeapInventory</h1>
+  <button id="btn-sync-now" title="Sincronizar">☁︎<span class="sync-dot" id="sync-dot"></span></button>
   <button id="btn-export" title="Exportar">⬇︎</button>
-  <button id="btn-delete-all" title="Borrar todos los artículos">🗑️</button>
-  <button id="btn-settings" title="Gestionar">⚙︎</button>
+  <button id="btn-settings" title="Ajustes">⚙︎</button>
 </header>
 
 <div class="preset-bar" id="preset-bar"></div>
 
-<div class="preset-bar" id="salones-bar"></div>
+<div class="preset-bar" id="group-bar"></div>
 
 <div class="summary">
   <div class="stat"><div class="n" id="stat-count">0</div><div class="l">Artículos</div></div>
-  <div class="stat"><div class="n" id="stat-preset">0</div><div class="l">En grupo</div></div>
+  <div class="stat"><div class="n" id="stat-group">0</div><div class="l" id="stat-group-label">Filtrados</div></div>
 </div>
 
 <main>
   <div class="scanning-mode-banner" id="scanning-banner">
     <div class="status">📱 Escaneando...</div>
     <div class="field-name" id="banner-field-name">CÓDIGO</div>
-    
-    <!-- Campo de entrada VISIBLE para que el scanner escriba -->
-    <input 
-      type="text" 
-      id="scanning-input-visible" 
+
+    <input
+      type="text"
+      id="scanning-input-visible"
       placeholder="Escanea aquí o escribe código..."
-      autocomplete="off" 
-      autocapitalize="off" 
-      spellcheck="false" 
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
       inputmode="text"
       style="
         background: rgba(0,0,0,0.2);
@@ -596,9 +734,10 @@
         box-sizing: border-box;
       "
     >
-    
+
     <div class="progress"><span id="banner-progress">Campo 1 de 3</span></div>
     <div class="button-group">
+      <button id="btn-open-camera" class="banner-btn" style="background: rgba(0,0,0,0.3);">📷 Cámara</button>
       <button id="btn-change-type" class="banner-btn" style="background: rgba(100,150,255,0.3);">📦 Cambiar</button>
       <button id="btn-edit-last" class="banner-btn" style="background: rgba(255,200,0,0.3);">✏️ Editar</button>
       <button id="btn-manual-scan" class="banner-btn">⌨️ Escribir</button>
@@ -608,13 +747,14 @@
 
   <div class="scan-button-wrap" id="scan-button-wrap">
     <button class="scan-button" id="btn-scan">📱 Escanear nuevo</button>
+    <button class="scan-button ghost" id="btn-new-item">✏️ Agregar manual</button>
   </div>
 
   <div id="list-container"></div>
 
   <div class="empty-state" id="empty-state" style="display:none;">
     <div>🗃️</div>
-    <p><b>Sin artículos en este grupo.</b></p>
+    <p><b>Sin artículos aquí todavía.</b></p>
   </div>
 </main>
 
@@ -622,6 +762,13 @@
 <div id="toast"></div>
 
 <div class="backdrop" id="backdrop"></div>
+
+<!-- CAMERA OVERLAY -->
+<div class="camera-overlay hidden" id="camera-overlay">
+  <div id="qr-reader"></div>
+  <div class="camera-hint" id="camera-hint">Apunta la cámara al código de barras o QR</div>
+  <button class="camera-close-btn" id="btn-close-camera">✕ Cerrar cámara</button>
+</div>
 
 <!-- ITEM SHEET -->
 <div class="sheet" id="item-sheet">
@@ -635,38 +782,70 @@
 <!-- SETTINGS SHEET -->
 <div class="sheet" id="settings-sheet">
   <div class="sheet-header">
-    <h2>⚙︎ Gestionar grupos</h2>
+    <h2>⚙︎ Ajustes</h2>
     <button id="btn-close-settings">✕</button>
   </div>
   <div class="sheet-body">
     <div class="tabs">
-      <button class="tab active" data-tab="groups-tab">Grupos</button>
-      <button class="tab" data-tab="salones-tab">Salones</button>
-      <button class="tab" data-tab="settings-tab">Configuración</button>
+      <button class="tab active" data-tab="groups-tab">Proyectos</button>
+      <button class="tab" data-tab="sync-tab">Sincronización</button>
+      <button class="tab" data-tab="export-tab">Exportar</button>
+      <button class="tab" data-tab="data-tab">Datos</button>
     </div>
 
-    <!-- GROUPS TAB -->
+    <!-- PROJECTS TAB -->
     <div id="groups-tab" class="tab-content active">
+      <div class="info-box">Cada <b>proyecto</b> es una hoja de inventario independiente (ej. "Equipos de oficina", "Herramientas", "Chromebooks"). Cada uno tiene sus propios campos personalizados.</div>
       <div id="groups-list"></div>
       <div class="btn-row">
-        <button class="btn primary" id="btn-new-group">➕ Nuevo grupo</button>
+        <button class="btn primary" id="btn-new-group">➕ Nuevo proyecto</button>
       </div>
     </div>
 
-    <!-- SALONES TAB -->
-    <div id="salones-tab" class="tab-content">
-      <div id="salones-list"></div>
-      <div class="btn-row">
-        <button class="btn primary" id="btn-new-salon">➕ Nuevo salón</button>
-      </div>
-    </div>
-
-    <!-- SETTINGS TAB -->
-    <div id="settings-tab" class="tab-content">
+    <!-- SYNC TAB -->
+    <div id="sync-tab" class="tab-content">
+      <div class="info-box">Comparte el mismo inventario entre varios dispositivos. Todos los que usen el <b>mismo código de equipo</b> ven y editan los mismos datos. No requiere cuenta ni contraseña: cualquiera con el código tiene acceso, así que trátalo como un enlace compartido.</div>
       <div class="field">
-        <label for="setting-auto-backup">Auto-guardado</label>
-        <input type="checkbox" id="setting-auto-backup" checked style="width: auto;">
-        <div class="field-hint">Guarda automáticamente cambios cada 30 segundos</div>
+        <label>Código de equipo</label>
+        <input type="text" id="input-workspace-code" placeholder="Ej: XJ7-QK2-9PL" style="text-transform:uppercase; font-family:'Courier New',monospace; font-weight:700; text-align:center;">
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-generate-code">🎲 Generar código nuevo</button>
+        <button class="btn primary" id="btn-save-code">Guardar</button>
+      </div>
+      <div class="sync-status-line" id="sync-status-line">Sin sincronización configurada</div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-sync-manual">☁︎ Sincronizar ahora</button>
+        <button class="btn danger" id="btn-disconnect-sync">Desconectar</button>
+      </div>
+    </div>
+
+    <!-- EXPORT TAB -->
+    <div id="export-tab" class="tab-content">
+      <div class="info-box">Elige qué proyectos incluir. En Excel, cada proyecto se divide en varias hojas automáticamente si tiene un campo marcado como "agrupar" (por ejemplo, Ubicación).</div>
+      <div id="export-project-list"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="btn-export-excel">📊 Excel</button>
+        <button class="btn secondary" id="btn-export-csv">📄 CSV</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-export-json">💾 Respaldo JSON</button>
+      </div>
+    </div>
+
+    <!-- DATA TAB -->
+    <div id="data-tab" class="tab-content">
+      <h3 style="margin-top:0;">Restaurar respaldo</h3>
+      <div class="field-hint" style="margin-bottom:8px;">Importa un archivo de respaldo JSON generado por esta app (fusiona con los datos actuales).</div>
+      <input type="file" id="input-import-json" accept="application/json">
+
+      <h3>Zona de peligro</h3>
+      <div class="warning-box">Estas acciones no se pueden deshacer.</div>
+      <div class="btn-row">
+        <button class="btn danger" id="btn-empty-project">🗑️ Vaciar proyecto actual</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn danger" id="btn-delete-all">🗑️ Borrar TODOS los artículos</button>
       </div>
     </div>
   </div>
@@ -675,37 +854,52 @@
 <!-- PRESET EDITOR SHEET -->
 <div class="sheet" id="preset-editor-sheet">
   <div class="sheet-header">
-    <h2 id="preset-editor-title">Editar grupo</h2>
+    <h2 id="preset-editor-title">Editar proyecto</h2>
     <button id="btn-close-preset-editor">✕</button>
   </div>
   <div class="sheet-body" id="preset-editor-body"></div>
 </div>
 
-<!-- Hidden input for scanner -->
-<input type="text" id="scanner-input" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" style="position: fixed; top: 0; left: 0; width: 100px; height: 40px; opacity: 0; z-index: -1; pointer-events: none;">
-
 <script>
   // ===== DATABASE =====
   const DB_NAME = 'InventarioEscolar';
-  const DB_VERSION = 12;
-  let db, items = [], presets = [], salones = [], activePresetId = null, activeSalonNum = null;
+  const DB_VERSION = 13;
+  const SUPABASE_URL = 'https://jnxyneruvvbmuydbxfmq.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpueHluZXJ1dnZibXV5ZGJ4Zm1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3NDI2MjIsImV4cCI6MjEwNTMxODYyMn0.yNhUvjacKXukp9tWaG4EjcOV2ve4zXoZj78VhMvj4lw';
+
+  let db, items = [], projects = [];
+  let activeProjectId = null, activeGroupValue = null;
   let editingId = null;
   let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
+  let workspaceCode = '', lastSyncAt = null, syncBusy = false;
+  let dirtyProjectIds = new Set(), dirtyItemIds = new Set();
+  let syncDebounceTimer = null;
+  let html5QrInstance = null;
+  let cameraModeActive = false;
+
+  const FIELD_TYPES = [
+    { value: 'text', label: 'Texto' },
+    { value: 'number', label: 'Número' },
+    { value: 'textarea', label: 'Texto largo' },
+    { value: 'date', label: 'Fecha' },
+    { value: 'select', label: 'Lista (opciones)' },
+    { value: 'photo', label: 'Foto' },
+    { value: 'gps', label: 'Ubicación GPS' }
+  ];
 
   function initDB() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onerror = () => reject(req.error);
-      req.onsuccess = () => {
-        db = req.result;
-        resolve();
-      };
+      req.onsuccess = () => { db = req.result; resolve(); };
       req.onupgradeneeded = (e) => {
         const d = e.target.result;
         if(!d.objectStoreNames.contains('presets')) d.createObjectStore('presets', { keyPath: 'id' });
-        if(!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('salones')) d.createObjectStore('salones', { keyPath: 'id' });
-        if(!d.objectStoreNames.contains('drafts')) d.createObjectStore('drafts', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('attachments')) d.createObjectStore('attachments', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'key' });
       };
     });
   }
@@ -713,9 +907,9 @@
   function idbPut(store, obj) {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(store, 'readwrite');
-      const req = tx.objectStore(store).put(obj);
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => resolve();
+      tx.objectStore(store).put(obj);
+      tx.oncomplete = () => resolve(obj);
+      tx.onerror = () => reject(tx.error);
     });
   }
 
@@ -723,8 +917,8 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(store, 'readonly');
       const req = tx.objectStore(store).getAll();
+      req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
-      req.onsuccess = () => resolve(req.result);
     });
   }
 
@@ -732,401 +926,349 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(store, 'readonly');
       const req = tx.objectStore(store).get(key);
-      req.onerror = () => reject(req.error);
       req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
     });
   }
 
   function idbDelete(store, key) {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(store, 'readwrite');
-      const req = tx.objectStore(store).delete(key);
-      req.onerror = () => reject(req.error);
+      tx.objectStore(store).delete(key);
       tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 
-  // ===== UTILITIES =====
   function escapeHTML(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    if(str == null) return '';
+    return String(str).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   }
 
   function uuid() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = Math.random() * 16 | 0;
-      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-    });
+    if(crypto.randomUUID) return crypto.randomUUID();
+    return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
   }
 
-  function todayISO() {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
-  }
+  function todayISO() { return new Date().toISOString().slice(0, 10); }
 
   function showToast(msg, duration = 2000) {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), duration);
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), duration);
   }
 
   function showScanToast(code) {
-    const el = document.getElementById('scan-toast');
-    el.textContent = `✓ ${code}`;
-    el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 1200);
+    const t = document.getElementById('scan-toast');
+    t.textContent = '✓ ' + code;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 1200);
   }
 
-  // ===== INIT DATA =====
+  // ===== GENERIC DATA HELPERS =====
+  function activeProjectsList() {
+    return projects.filter(p => !p.deleted).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }
+  function getCurrentProject() {
+    return projects.find(p => p.id === activeProjectId && !p.deleted) || activeProjectsList()[0];
+  }
+  function groupFieldOf(project) {
+    return (project?.fields || []).find(f => f.isGroup && f.type === 'select');
+  }
+  function itemsOfProject(projectId) {
+    return items.filter(it => !it.deleted && it.projectId === projectId);
+  }
+  function safeSheetName(name) {
+    return String(name).replace(/[\\/*?:\[\]]/g, ' ').trim().slice(0, 31) || 'Hoja';
+  }
+
+  function markProjectDirty(id) {
+    dirtyProjectIds.add(id);
+    persistDirty();
+    scheduleAutoSync();
+  }
+  function markItemDirty(id) {
+    dirtyItemIds.add(id);
+    persistDirty();
+    scheduleAutoSync();
+  }
+  function persistDirty() {
+    idbPut('meta', { key: 'dirty', projects: [...dirtyProjectIds], items: [...dirtyItemIds] });
+  }
+  function scheduleAutoSync() {
+    if(!workspaceCode) return;
+    clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = setTimeout(() => syncNow(false), 2500);
+  }
+
+  // ===== INIT / MIGRATION =====
   async function initData() {
-    console.log('Iniciando app...');
-    presets = await idbGetAll('presets');
+    projects = await idbGetAll('projects');
     items = await idbGetAll('items');
-    salones = await idbGetAll('salones');
-    
-    console.log('Salones cargados:', salones.length, salones);
+    const metaRows = await idbGetAll('meta');
+    const meta = {};
+    metaRows.forEach(r => meta[r.key] = r);
+    workspaceCode = meta.workspaceCode ? meta.workspaceCode.value : '';
+    lastSyncAt = meta.lastSyncAt ? meta.lastSyncAt.value : null;
+    dirtyProjectIds = new Set(meta.dirty ? meta.dirty.projects : []);
+    dirtyItemIds = new Set(meta.dirty ? meta.dirty.items : []);
 
-    if(salones.length === 0) {
-      console.log('Creando 32 salones...');
-      salones = Array.from({length: 32}, (_, i) => ({
-        id: 'salon_' + (i + 1),
-        numero: String(i + 1).padStart(3, '0'),
-        nombre: 'Salón ' + (i + 1)
-      }));
-      await Promise.all(salones.map(s => idbPut('salones', s)));
-      console.log('Salones creados:', salones.length);
+    if(projects.length === 0) {
+      const legacyPresets = await idbGetAll('presets');
+      if(legacyPresets.length > 0) {
+        await migrateLegacyData(legacyPresets);
+      }
     }
 
-    if(presets.length === 0) {
-      presets = [
-        {
-          id: 'chromebooks',
-          name: 'Chromebooks',
-          icon: '💻',
-          fixedName: 'Chromebook',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
-            { key: 'serial', label: 'SERIAL', type: 'text', required: true, continuous: true },
-            { key: 'cantidad', label: 'Cantidad', type: 'number', default: 1, continuous: false },
-            { key: 'ubicacion', label: 'Ubicación', type: 'text', continuous: false },
-            { key: 'notas', label: 'Notas', type: 'textarea', continuous: false }
-          ]
-        },
-        {
-          id: 'smartboards',
-          name: 'Smartboards',
-          icon: '🖥️',
-          fixedName: 'Smartboard',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
-            { key: 'serial', label: 'SERIAL', type: 'text', required: true, continuous: true },
-            { key: 'ubicacion', label: 'Ubicación', type: 'text', continuous: false },
-            { key: 'notas', label: 'Notas', type: 'textarea', continuous: false }
-          ]
-        },
-        {
-          id: 'chromecarts',
-          name: 'ChromeCart',
-          icon: '🛒',
-          fixedName: 'ChromeCart',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
-            { key: 'cantidad', label: 'Cantidad Chromebooks', type: 'number', default: 1, continuous: false },
-            { key: 'ubicacion', label: 'Ubicación', type: 'text', continuous: false },
-            { key: 'notas', label: 'Notas', type: 'textarea', continuous: false }
-          ]
-        },
-        {
-          id: 'sillas-amarillas',
-          name: 'Sillas Amarillas',
-          icon: '🟨',
-          fixedName: 'Silla Amarilla',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        },
-        {
-          id: 'sillas-azules',
-          name: 'Sillas Azules',
-          icon: '🔵',
-          fixedName: 'Silla Azul',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        },
-        {
-          id: 'escritorios',
-          name: 'Escritorios',
-          icon: '📝',
-          fixedName: 'Escritorio',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        },
-        {
-          id: 'libreros',
-          name: 'Libreros',
-          icon: '📚',
-          fixedName: 'Librero',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        },
-        {
-          id: 'escritorio-maestro',
-          name: 'Escritorio Maestro',
-          icon: '🏫',
-          fixedName: 'Escritorio Maestro',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        },
-        {
-          id: 'armario',
-          name: 'Armario',
-          icon: '🚪',
-          fixedName: 'Armario',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        },
-        {
-          id: 'silla-rueda',
-          name: 'Silla Rueda',
-          icon: '♿',
-          fixedName: 'Silla Rueda',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        },
-        {
-          id: 'sillas-negra',
-          name: 'Sillas Negra',
-          icon: '⬛',
-          fixedName: 'Silla Negra',
-          fields: [
-            { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true }
-          ]
-        }
-      ];
-      await Promise.all(presets.map(p => idbPut('presets', p)));
+    if(projects.length === 0) {
+      const example = {
+        id: uuid(), name: 'Inventario general', icon: '📦', fixedName: '',
+        sortOrder: 0, deleted: false,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        fields: [
+          { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
+          { key: 'descripcion', label: 'Descripción', type: 'text', required: false, continuous: false },
+          { key: 'cantidad', label: 'Cantidad', type: 'number', required: false, continuous: false, default: 1 },
+          { key: 'ubicacion', label: 'Ubicación', type: 'select', required: true, continuous: false, isGroup: true, options: ['Bodega', 'Oficina', 'Recepción'] },
+          { key: 'foto', label: 'Foto', type: 'photo', required: false, continuous: false },
+          { key: 'notas', label: 'Notas', type: 'textarea', required: false, continuous: false }
+        ]
+      };
+      projects = [example];
+      await idbPut('projects', example);
     }
 
-    activePresetId = presets[0]?.id || null;
-    activeSalonNum = salones[0]?.numero || null;
-    console.log('Inicialización completa:');
-    console.log('  Presets:', presets.length);
-    console.log('  Salones:', salones.length);
-    console.log('  Items:', items.length);
-    console.log('  ActiveSalonNum:', activeSalonNum);
+    activeProjectId = activeProjectsList()[0]?.id || null;
+    const gf = groupFieldOf(getCurrentProject());
+    activeGroupValue = gf ? (gf.options || [])[0] || null : null;
+
     render();
+    renderSyncTab();
+    if(workspaceCode) syncNow(false);
   }
 
-  // ===== UI RENDERING =====
-  function getCurrentPreset() {
-    return presets.find(p => p.id === activePresetId) || presets[0];
+  async function migrateLegacyData(legacyPresets) {
+    const legacySalones = await idbGetAll('salones');
+    const legacyItems = await idbGetAll('items');
+    const salonByNum = {};
+    legacySalones.forEach(s => salonByNum[s.numero] = s.nombre);
+    const salonOptions = legacySalones
+      .sort((a, b) => parseInt(a.numero) - parseInt(b.numero))
+      .map(s => s.nombre);
+
+    projects = legacyPresets.map((p, idx) => ({
+      id: p.id,
+      name: p.name,
+      icon: p.icon || '📦',
+      fixedName: p.fixedName || '',
+      sortOrder: idx,
+      deleted: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      fields: [
+        ...(p.fields || []).map(f => ({
+          key: f.key, label: f.label, type: f.type,
+          required: !!f.required, continuous: !!f.continuous,
+          options: f.options, default: f.default
+        })),
+        ...(salonOptions.length ? [{ key: 'ubicacion_grupo', label: 'Salón', type: 'select', required: true, continuous: false, isGroup: true, options: salonOptions }] : [])
+      ]
+    }));
+
+    items = legacyItems.map(it => {
+      const proj = projects.find(pp => pp.id === it.presetId);
+      const data = {};
+      (proj?.fields || []).forEach(f => {
+        if(f.key === 'ubicacion_grupo') return;
+        if(it[f.key] != null) data[f.key] = it[f.key];
+      });
+      if(proj && groupFieldOf(proj)) {
+        data.ubicacion_grupo = it.salon != null ? (salonByNum[it.salon] || it.salon) : null;
+      }
+      const createdAt = it.createdAt || new Date().toISOString();
+      return {
+        id: it.id, projectId: it.presetId, data,
+        notes: null, deleted: false,
+        history: [{ at: createdAt, action: 'migrated' }],
+        createdAt, updatedAt: it.updatedAt || createdAt
+      };
+    });
+
+    await Promise.all(projects.map(p => idbPut('projects', p)));
+    await Promise.all(items.map(it => idbPut('items', it)));
+    showToast('✓ Se migraron tus datos anteriores al nuevo formato');
   }
 
+  // ===== RENDERING: BARS & LIST =====
   function renderPresetBar() {
     const bar = document.getElementById('preset-bar');
     bar.innerHTML = '';
-    presets.forEach(p => {
+    activeProjectsList().forEach(p => {
       const btn = document.createElement('button');
-      btn.className = 'preset-btn' + (p.id === activePresetId ? ' active' : '');
-      btn.textContent = `${p.icon} ${p.name}`;
+      btn.className = 'preset-btn' + (p.id === activeProjectId ? ' active' : '');
+      btn.textContent = `${p.icon || '📦'} ${p.name}`;
       btn.onclick = () => {
-        activePresetId = p.id;
+        activeProjectId = p.id;
+        const gf = groupFieldOf(p);
+        activeGroupValue = gf ? (gf.options || [])[0] || null : null;
         render();
       };
       bar.appendChild(btn);
     });
+    const addBtn = document.createElement('button');
+    addBtn.className = 'preset-btn add';
+    addBtn.textContent = '➕ Proyecto';
+    addBtn.onclick = newPreset;
+    bar.appendChild(addBtn);
   }
 
-  function renderSalonesBar() {
-    const bar = document.getElementById('salones-bar');
-    console.log('renderSalonesBar: encontrado HTML, salones:', salones.length);
-    if(!bar) {
-      console.error('ERROR: #salones-bar no encontrado en HTML');
+  function renderGroupBar() {
+    const bar = document.getElementById('group-bar');
+    const project = getCurrentProject();
+    const gf = project ? groupFieldOf(project) : null;
+    if(!gf || !(gf.options || []).length) {
+      bar.classList.add('hidden');
+      bar.innerHTML = '';
       return;
     }
+    bar.classList.remove('hidden');
     bar.innerHTML = '';
-    
-    if(salones.length === 0) {
-      console.warn('Sin salones para renderizar');
-      return;
-    }
-
-    salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).forEach(s => {
+    gf.options.forEach(opt => {
       const btn = document.createElement('button');
-      btn.className = 'preset-btn' + (s.numero === activeSalonNum ? ' active' : '');
-      btn.textContent = `Salón ${s.numero}`;
-      btn.style.display = 'flex';  // Asegurar que se muestra
-      btn.onclick = () => {
-        activeSalonNum = s.numero;
-        render();
-      };
+      btn.className = 'preset-btn' + (opt === activeGroupValue ? ' active' : '');
+      btn.textContent = opt;
+      btn.onclick = () => { activeGroupValue = opt; render(); };
       bar.appendChild(btn);
     });
-
-    // Botón agregar salón
-    const btnAdd = document.createElement('button');
-    btnAdd.className = 'preset-btn';
-    btnAdd.textContent = '➕ Nuevo';
-    btnAdd.title = 'Agregar salón nuevo';
-    btnAdd.style.cssText = `
-      background: #10b981 !important;
-      color: #fff !important;
-      border-color: #10b981 !important;
-      font-weight: 700;
-      display: flex !important;
-    `;
-    btnAdd.onclick = () => {
-      const customName = prompt('Nombre del salón:\n(ej: Facultad, Educación Física, o número como 50)');
-      if(!customName || customName.trim() === '') {
-        return;
-      }
-      
-      const salonNum = customName.trim().padStart(3, '0');
-      if(salones.find(s => s.numero === salonNum)) {
-        showToast('⚠️ Salón ya existe');
-        return;
-      }
-
-      const newSalon = {
-        id: 'salon_' + Date.now(),
-        numero: salonNum,
-        nombre: `Salón ${salonNum}`
-      };
-      salones.push(newSalon);
-      idbPut('salones', newSalon).then(() => {
-        showToast('✓ Salón ' + salonNum + ' creado');
-        renderSalonesBar();
-      });
-    };
-    bar.appendChild(btnAdd);
-    console.log('✅ renderSalonesBar completado:', bar.children.length, 'botones');
   }
 
   function updateStats() {
-    const preset = getCurrentPreset();
-    const salon = salones.find(s => s.numero === activeSalonNum);
-    const count = items.filter(it => it.presetId === preset.id).length;
-    const salonCount = items.filter(it => it.presetId === preset.id && it.salon === activeSalonNum).length;
-    document.getElementById('stat-count').textContent = count;
-    document.getElementById('stat-preset').textContent = salonCount;
+    const project = getCurrentProject();
+    const gf = project ? groupFieldOf(project) : null;
+    const all = project ? itemsOfProject(project.id) : [];
+    const filtered = gf ? all.filter(it => it.data[gf.key] === activeGroupValue) : all;
+    document.getElementById('stat-count').textContent = all.length;
+    document.getElementById('stat-group').textContent = filtered.length;
+    document.getElementById('stat-group-label').textContent = gf ? gf.label : 'Total';
+  }
+
+  function fieldPreviewValue(it, field) {
+    const v = it.data[field.key];
+    if(v == null || v === '') return '';
+    if(field.type === 'photo') return '📷';
+    if(field.type === 'gps') return '📍';
+    return String(v);
   }
 
   function renderList() {
-    const preset = getCurrentPreset();
-    const allItems = items.filter(it => it.presetId === preset.id && it.salon === activeSalonNum);
     const container = document.getElementById('list-container');
-    const empty = document.getElementById('empty-state');
-
-    if(allItems.length === 0) {
+    const project = getCurrentProject();
+    if(!project) {
       container.innerHTML = '';
-      empty.style.display = 'block';
+      document.getElementById('empty-state').style.display = 'block';
       return;
     }
-    empty.style.display = 'none';
-    container.innerHTML = '';
+    const gf = groupFieldOf(project);
+    let list = itemsOfProject(project.id);
+    if(gf) list = list.filter(it => it.data[gf.key] === activeGroupValue);
+    list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
-    allItems.forEach(it => {
+    container.innerHTML = '';
+    document.getElementById('empty-state').style.display = list.length ? 'none' : 'block';
+
+    const previewFields = project.fields.filter(f => f !== gf && f.type !== 'photo').slice(0, 2);
+
+    list.forEach(it => {
       const card = document.createElement('div');
       card.className = 'item-card';
-      const initials = (it.nombre || '?').trim().slice(0, 2).toUpperCase();
-      const subtext = `#${it.codigo || '?'}${it.notas ? ' • ' + it.notas.substring(0, 20) : ''}`;
+      const initials = (project.fixedName || project.name || '?').slice(0, 2).toUpperCase();
+      const photoField = project.fields.find(f => f.type === 'photo' && it.data[f.key]);
+      const hasGps = project.fields.some(f => f.type === 'gps' && it.data[f.key]);
+      const sub = previewFields.map(f => fieldPreviewValue(it, f)).filter(Boolean).join(' · ');
       card.innerHTML = `
-        <div class="thumb">${initials}</div>
+        <div class="thumb" data-photo-id="${photoField ? escapeHTML(it.data[photoField.key]) : ''}">${initials}</div>
         <div class="info">
-          <div class="title">${escapeHTML(it.nombre || '(sin nombre)')}</div>
-          <div class="sub">${escapeHTML(subtext)}</div>
+          <div class="title">${escapeHTML(project.fixedName || project.name)}${it.data.codigo ? ' · ' + escapeHTML(it.data.codigo) : ''}</div>
+          <div class="sub">${escapeHTML(sub)}</div>
         </div>
+        <div class="badges">${hasGps ? '📍' : ''}${photoField ? '📷' : ''}</div>
       `;
       card.onclick = () => openItemSheet(it.id);
       container.appendChild(card);
     });
+
+    hydratePhotoThumbs();
+  }
+
+  async function hydratePhotoThumbs() {
+    const thumbs = document.querySelectorAll('.thumb[data-photo-id]');
+    for(const el of thumbs) {
+      const id = el.getAttribute('data-photo-id');
+      if(!id) continue;
+      const att = await idbGet('attachments', id);
+      if(att && att.dataUrl) {
+        el.innerHTML = `<img src="${att.dataUrl}" alt="">`;
+      }
+    }
   }
 
   function render() {
     renderPresetBar();
-    renderSalonesBar();
+    renderGroupBar();
     updateStats();
     renderList();
   }
 
-  // ===== SCANNING =====
+  // ===== SCANNING FLOW =====
   function stopScanning() {
     scanMode = false;
-    currentScanIdx = 0;
-    currentScanData = {};
-    scanFields = [];
-    
-    const banner = document.getElementById('scanning-banner');
-    const buttonWrap = document.getElementById('scan-button-wrap');
-    
-    banner.classList.remove('show');
-    buttonWrap.classList.remove('hidden');
-    
-    const inp = document.getElementById('scanning-input-visible');
-    inp.value = '';
-    inp.blur();
-    
+    cameraModeActive = false;
+    document.getElementById('scanning-banner').classList.remove('show');
+    document.getElementById('scan-button-wrap').classList.remove('hidden');
+    closeCamera();
     showToast('Escaneo cancelado');
     render();
   }
 
   function openManualInputDuringScan() {
-    const code = prompt('Escribir código manualmente:\n(presiona OK cuando termines)');
-    if(!code || code.trim() === '') {
-      const scanInput = document.getElementById('scanning-input-visible');
-      scanInput.focus();
-      return;
-    }
-    processScanCode(code.trim());
-    const scanInput = document.getElementById('scanning-input-visible');
-    scanInput.focus();
+    const code = prompt('Escribe el código manualmente:');
+    if(code && code.trim()) processScanCode(code.trim());
   }
 
   function startScanning() {
-    const preset = getCurrentPreset();
-    scanFields = preset.fields.filter(f => f.continuous);
-    
+    const project = getCurrentProject();
+    if(!project) { showToast('Crea un proyecto primero'); return; }
+    scanFields = project.fields.filter(f => f.continuous);
+
     if(scanFields.length === 0) {
-      showToast('Sin campos para escanear');
+      showToast('Este proyecto no tiene campos para escanear. Usa "Agregar manual".');
       return;
     }
 
     scanMode = true;
     currentScanIdx = 0;
-    currentScanData = { presetId: preset.id, salon: activeSalonNum };
-    if(preset.fixedName) currentScanData.nombre = preset.fixedName;
+    currentScanData = {};
+    const gf = groupFieldOf(project);
+    if(gf) currentScanData[gf.key] = activeGroupValue;
 
-    console.log('🔴 INICIO ESCANEO - Campo visible listo para recibir código');
     document.getElementById('scanning-banner').classList.add('show');
     document.getElementById('scan-button-wrap').classList.add('hidden');
-    
+
     updateScanningBanner();
-    
-    // Usar el campo VISIBLE para escaneo
+
     const scanInput = document.getElementById('scanning-input-visible');
     scanInput.value = '';
-    
-    console.log('Enfocando scanning-input-visible...');
     scanInput.focus();
-    
-    setTimeout(() => {
-      console.log('Re-enfocando scanning-input-visible');
-      scanInput.focus();
-    }, 100);
+    setTimeout(() => scanInput.focus(), 100);
   }
 
   function updateScanningBanner() {
     const field = scanFields[currentScanIdx];
     if(!field) return;
     document.getElementById('banner-field-name').textContent = field.label;
-    // El field-value ahora es el input visible, no necesita actualización
     document.getElementById('banner-progress').textContent = `Campo ${currentScanIdx + 1} de ${scanFields.length}`;
   }
 
@@ -1140,221 +1282,224 @@
     showScanToast(code.trim());
 
     currentScanIdx++;
-    
-    // Verificar si todos los campos requeridos están llenos
+
     const allRequiredFilled = scanFields.filter(f => f.required).every(f => currentScanData[f.key]);
-    
-    if(allRequiredFilled && currentScanIdx >= scanFields.length) {
-      // Todos los campos requeridos completos - GUARDAR
-      setTimeout(() => {
-        saveScannedItemQuick(currentScanData);
-      }, 500);
-    } else if(allRequiredFilled && !scanFields[currentScanIdx]?.required) {
-      // Todos los requeridos están llenos, pero hay campos opcionales
-      // Para artículos con SOLO CÓDIGO, esto no sucede, pero por compatibilidad:
-      setTimeout(() => {
-        const continuar = confirm('✓ Campos requeridos completados. ¿Continuar escaneando campos opcionales o guardar?');
-        if(continuar) {
-          updateScanningBanner();
-          const scanInput = document.getElementById('scanning-input-visible');
-          scanInput.value = '';
-          scanInput.focus();
-          if(navigator.vibrate) navigator.vibrate(100);
-        } else {
-          saveScannedItemQuick(currentScanData);
-        }
-      }, 500);
-    } else if(currentScanIdx < scanFields.length) {
-      // Seguir con el siguiente campo
+
+    if(currentScanIdx >= scanFields.length) {
+      setTimeout(() => saveScannedItemQuick(currentScanData), 400);
+    } else {
       setTimeout(() => {
         updateScanningBanner();
         const scanInput = document.getElementById('scanning-input-visible');
-        scanInput.value = '';
-        scanInput.focus();
+        if(scanInput) { scanInput.value = ''; scanInput.focus(); }
+        if(cameraModeActive) resumeCameraForNextField();
         if(navigator.vibrate) navigator.vibrate(100);
-      }, 500);
-    } else {
-      // Completamos todos los campos
-      setTimeout(() => {
-        saveScannedItemQuick(currentScanData);
-      }, 500);
+      }, 400);
     }
+    void allRequiredFilled;
   }
 
   function saveScannedItemQuick(scanData) {
-    const preset = getCurrentPreset();
+    const project = getCurrentProject();
+    const now = new Date().toISOString();
+    project.fields.forEach(f => {
+      if(f.continuous) return;
+      if(scanData[f.key] == null && f.default != null) {
+        scanData[f.key] = f.default === 'today' ? todayISO() : f.default;
+      }
+    });
     const newItem = {
-      id: 'item_' + Date.now(),
-      presetId: preset.id,
-      salon: activeSalonNum,
-      nombre: preset.fixedName,
-      createdAt: new Date().toISOString(),
-      ...scanData
+      id: uuid(),
+      projectId: project.id,
+      data: scanData,
+      notes: null, deleted: false,
+      history: [{ at: now, action: 'scanned' }],
+      createdAt: now, updatedAt: now
     };
-    
+
     items.push(newItem);
     idbPut('items', newItem).then(() => {
-      showToast(`✓ ${preset.name} - ${scanData.codigo || 'guardado'}`);
-      
-      // Auto-continuar en 1 segundo (sin popup)
-      setTimeout(() => {
-        continueScanQuick();
-      }, 1000);
+      markItemDirty(newItem.id);
+      showToast(`✓ ${project.name} - ${scanData.codigo || 'guardado'}`);
+      showQuickOptions(newItem);
+      render();
     });
   }
 
   function showQuickOptions(item) {
-    const preset = presets.find(p => p.id === item.presetId);
-    
-    // Crear popup
+    document.getElementById('quick-options-popup')?.remove();
+    const project = projects.find(p => p.id === item.projectId);
+
     const popup = document.createElement('div');
     popup.id = 'quick-options-popup';
     popup.style.cssText = `
-      position: fixed;
-      bottom: 100px;
-      left: 20px;
-      right: 20px;
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: white;
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-      z-index: 9999;
-      text-align: center;
-      animation: slideUp 0.3s ease-out;
+      position: fixed; bottom: 100px; left: 20px; right: 20px;
+      background: linear-gradient(135deg, #10b981, #059669); color: white;
+      padding: 16px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      z-index: 9999; text-align: center; animation: slideUp 0.3s ease-out;
     `;
-    
     popup.innerHTML = `
       <div style="font-weight: bold; margin-bottom: 12px; font-size: 16px;">
-        ✓ ${preset?.name} - ${item.codigo || 'Guardado'}
+        ✓ ${escapeHTML(project?.name || '')} - ${escapeHTML(item.data.codigo || 'Guardado')}
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-        <button onclick="continueScanQuick()" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">📱 Continuar</button>
-        <button onclick="changeTypeQuick()" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">📦 Cambiar</button>
+        <button id="qo-continue" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">📱 Continuar</button>
+        <button id="qo-change" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">📦 Cambiar</button>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <button id="qo-edit" style="padding: 8px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">✏️ Editar</button>
+        <button id="qo-delete" style="padding: 8px; background: rgba(255,0,0,0.35); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🗑️ Borrar</button>
       </div>
       <div style="font-size: 12px; opacity: 0.8;" id="auto-continue-timer">Auto-continúa en 3s...</div>
     `;
-    
     document.body.appendChild(popup);
-    
-    // Timer para auto-continuar
+
     let seconds = 3;
     const timerEl = document.getElementById('auto-continue-timer');
     const timerInterval = setInterval(() => {
       seconds--;
       if(timerEl) timerEl.textContent = `Auto-continúa en ${seconds}s...`;
-      if(seconds <= 0) {
-        clearInterval(timerInterval);
-        continueScanQuick();
-      }
+      if(seconds <= 0) { clearInterval(timerInterval); continueScanQuick(); }
     }, 1000);
-    
-    // Si hace click en algo, limpiar timer
-    popup.addEventListener('click', () => {
-      clearInterval(timerInterval);
-    });
+
+    const stopTimer = () => clearInterval(timerInterval);
+    document.getElementById('qo-continue').onclick = () => { stopTimer(); continueScanQuick(); };
+    document.getElementById('qo-change').onclick = () => { stopTimer(); changeTypeQuick(); };
+    document.getElementById('qo-edit').onclick = () => { stopTimer(); popup.remove(); stopScanning(); openItemSheet(item.id); };
+    document.getElementById('qo-delete').onclick = () => {
+      stopTimer();
+      if(confirm('¿Eliminar este artículo?')) { deleteItem(item.id); popup.remove(); }
+    };
   }
 
   function continueScanQuick() {
-    const popup = document.getElementById('quick-options-popup');
-    if(popup) popup.remove();
-    
-    // Limpiar datos del item anterior
+    document.getElementById('quick-options-popup')?.remove();
     currentScanData = {};
     currentScanIdx = 0;
-    
-    // Asegurar que scanMode está activado
+    const project = getCurrentProject();
+    const gf = groupFieldOf(project);
+    if(gf) currentScanData[gf.key] = activeGroupValue;
+
     scanMode = true;
-    
-    // Actualizar banner de escaneo
-    const banner = document.getElementById('scanning-banner');
-    if(banner) {
-      banner.classList.add('show');
-    }
-    
-    const scanButtonWrap = document.getElementById('scan-button-wrap');
-    if(scanButtonWrap) {
-      scanButtonWrap.classList.add('hidden');
-    }
-    
-    // Actualizar banner con campo actual
+    document.getElementById('scanning-banner').classList.add('show');
+    document.getElementById('scan-button-wrap').classList.add('hidden');
     updateScanningBanner();
-    
-    // Limpiar input y enfocar
+
     const scanInput = document.getElementById('scanning-input-visible');
-    if(scanInput) {
-      scanInput.value = '';
-      scanInput.focus();
-    }
+    if(scanInput) { scanInput.value = ''; scanInput.focus(); }
+    if(cameraModeActive) resumeCameraForNextField();
   }
 
   function changeTypeQuick() {
-    const popup = document.getElementById('quick-options-popup');
-    if(popup) popup.remove();
-    
+    document.getElementById('quick-options-popup')?.remove();
     stopScanning();
     render();
   }
 
-  function showScannedItemOptions(item) {
-    const preset = presets.find(p => p.id === item.presetId);
-    const html = `
-      <div style="position: fixed; bottom: 20px; left: 20px; right: 20px; background: #10b981; color: white; padding: 16px; border-radius: 8px; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-        <div style="font-weight: bold; margin-bottom: 12px;">✓ ${preset?.name} - ${item.codigo || 'Sin código'}</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-          <button onclick="continueScanning()" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;">📱 Continuar</button>
-          <button onclick="changeArticle()" style="padding: 10px; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;">📦 Cambiar</button>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-          <button onclick="editItemQuick('${item.id}')" style="padding: 8px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">✏️ Editar</button>
-          <button onclick="deleteItemQuick('${item.id}')" style="padding: 8px; background: rgba(255,0,0,0.3); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🗑️ Borrar</button>
-        </div>
-      </div>
-    `;
-    const notif = document.createElement('div');
-    notif.id = 'scanned-notification';
-    notif.innerHTML = html;
-    document.body.appendChild(notif);
+  function editItemQuick(itemId) { openItemSheet(itemId); }
+  function deleteItemQuick(itemId) { if(confirm('¿Eliminar este artículo?')) deleteItem(itemId); }
+
+  // ===== CAMERA SCANNING =====
+  function ensureHtml5Qrcode() {
+    if(window.Html5Qrcode) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('No se pudo cargar el módulo de cámara'));
+      document.head.appendChild(script);
+    });
   }
 
-  function continueScanning() {
-    const preset = getCurrentPreset();
-    dismissNotification();
-    startScanning(preset.id);
+  async function openCamera() {
+    cameraModeActive = true;
+    const overlay = document.getElementById('camera-overlay');
+    overlay.classList.remove('hidden');
+    document.getElementById('camera-hint').textContent = 'Apunta la cámara al código de barras o QR';
+    try {
+      await ensureHtml5Qrcode();
+    } catch(err) {
+      document.getElementById('camera-hint').textContent = 'No se pudo cargar el módulo de cámara. Revisa tu conexión.';
+      return;
+    }
+    if(!cameraModeActive) return;
+    html5QrInstance = new Html5Qrcode('qr-reader');
+    html5QrInstance.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 240 },
+      (decodedText) => {
+        if(navigator.vibrate) navigator.vibrate(120);
+        closeCamera();
+        processScanCode(decodedText);
+      },
+      () => {}
+    ).catch(err => {
+      console.error(err);
+      document.getElementById('camera-hint').textContent = 'No se pudo abrir la cámara. Revisa los permisos.';
+    });
   }
 
-  function changeArticle() {
-    dismissNotification();
-    stopScanning();
-    document.getElementById('item-sheet').classList.add('hidden');
-    render();
+  function resumeCameraForNextField() {
+    setTimeout(() => { if(cameraModeActive) openCamera(); }, 500);
   }
 
-  function editItemQuick(itemId) {
-    dismissNotification();
-    openItemSheet(itemId);
-  }
-
-  function deleteItemQuick(itemId) {
-    if(confirm('¿Borrar este artículo?')) {
-      items = items.filter(it => it.id !== itemId);
-      idbDelete('items', itemId).then(() => {
-        showToast('✓ Artículo borrado');
-        dismissNotification();
-        render();
-      });
+  function closeCamera() {
+    document.getElementById('camera-overlay').classList.add('hidden');
+    if(html5QrInstance) {
+      const inst = html5QrInstance;
+      html5QrInstance = null;
+      inst.stop().catch(() => {}).finally(() => inst.clear());
     }
   }
 
-  function dismissNotification() {
-    const notif = document.querySelector('[style*="position: fixed"]');
-    if(notif) notif.remove();
+  function closeCameraByUser() {
+    cameraModeActive = false;
+    closeCamera();
   }
 
-  // ===== FORM =====
+  // ===== PHOTO & GPS CAPTURE =====
+  function compressImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = () => { img.src = reader.result; };
+      reader.onerror = reject;
+      img.onload = () => {
+        const maxDim = 1280;
+        let { width, height } = img;
+        if(width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function captureGPS(btn) {
+    if(!navigator.geolocation) { showToast('GPS no disponible en este dispositivo'); return null; }
+    btn.textContent = '📍 Obteniendo ubicación...';
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, at: new Date().toISOString() });
+        },
+        (err) => { console.error(err); showToast('No se pudo obtener la ubicación'); resolve(null); },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  }
+
+  // ===== ITEM FORM =====
   function buildFieldInput(f, value) {
     const id = 'f_' + f.key;
-    let html = `<div class="field ${f.required ? 'required' : ''}"><label for="${id}">${escapeHTML(f.label)}</label>`;
+    let html = `<div class="field ${f.required ? 'required' : ''}" data-field-key="${f.key}"><label for="${id}">${escapeHTML(f.label)}</label>`;
     const val = value == null ? '' : value;
 
     if(f.type === 'textarea') {
@@ -1369,6 +1514,20 @@
       html += `<input type="number" inputmode="decimal" id="${id}" data-key="${f.key}" value="${escapeHTML(val)}" placeholder="0">`;
     } else if(f.type === 'date') {
       html += `<input type="date" id="${id}" data-key="${f.key}" value="${escapeHTML(val)}">`;
+    } else if(f.type === 'photo') {
+      html += `
+        <div class="photo-row" id="${id}_wrap" data-key="${f.key}" data-value="${escapeHTML(val)}">
+          <div id="${id}_preview"></div>
+          <input type="file" accept="image/*" capture="environment" id="${id}_input" style="display:none">
+          <button type="button" class="btn secondary small" id="${id}_btn">📷 Tomar foto</button>
+          <button type="button" class="btn danger small hidden" id="${id}_remove">✕ Quitar</button>
+        </div>`;
+    } else if(f.type === 'gps') {
+      html += `
+        <div id="${id}_wrap" data-key="${f.key}" data-value='${val ? escapeHTML(JSON.stringify(val)) : ''}'>
+          <button type="button" class="btn secondary small" id="${id}_btn">📍 Usar mi ubicación</button>
+          <div id="${id}_readout"></div>
+        </div>`;
     } else {
       html += `<input type="text" id="${id}" data-key="${f.key}" value="${escapeHTML(val)}" placeholder="Escribe aquí...">`;
     }
@@ -1376,43 +1535,99 @@
     return html;
   }
 
+  async function wireSpecialField(f, item) {
+    const id = 'f_' + f.key;
+    if(f.type === 'photo') {
+      const wrap = document.getElementById(id + '_wrap');
+      const preview = document.getElementById(id + '_preview');
+      const fileInput = document.getElementById(id + '_input');
+      const btn = document.getElementById(id + '_btn');
+      const removeBtn = document.getElementById(id + '_remove');
+
+      const renderPreview = async () => {
+        const attId = wrap.dataset.value;
+        if(attId) {
+          const att = await idbGet('attachments', attId);
+          preview.innerHTML = att ? `<img class="photo-thumb" src="${att.dataUrl}" alt="">` : `<div class="photo-placeholder">📷</div>`;
+          removeBtn.classList.remove('hidden');
+        } else {
+          preview.innerHTML = `<div class="photo-placeholder">📷</div>`;
+          removeBtn.classList.add('hidden');
+        }
+      };
+      renderPreview();
+
+      btn.onclick = () => fileInput.click();
+      fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if(!file) return;
+        const dataUrl = await compressImageFile(file);
+        const attId = uuid();
+        await idbPut('attachments', { id: attId, dataUrl, createdAt: new Date().toISOString() });
+        wrap.dataset.value = attId;
+        await renderPreview();
+      };
+      removeBtn.onclick = () => { wrap.dataset.value = ''; renderPreview(); };
+    } else if(f.type === 'gps') {
+      const wrap = document.getElementById(id + '_wrap');
+      const btn = document.getElementById(id + '_btn');
+      const readout = document.getElementById(id + '_readout');
+
+      const renderReadout = () => {
+        const raw = wrap.dataset.value;
+        if(!raw) { readout.innerHTML = ''; return; }
+        try {
+          const g = JSON.parse(raw);
+          readout.innerHTML = `<div class="gps-readout">📍 ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)} (±${Math.round(g.accuracy)}m)<br><a href="https://www.google.com/maps?q=${g.lat},${g.lng}" target="_blank" rel="noopener">Ver en el mapa</a></div>`;
+        } catch(e) { readout.innerHTML = ''; }
+      };
+      renderReadout();
+
+      btn.onclick = async () => {
+        const g = await captureGPS(btn);
+        btn.textContent = '📍 Usar mi ubicación';
+        if(g) { wrap.dataset.value = JSON.stringify(g); renderReadout(); }
+      };
+    }
+  }
+
+  function renderHistory(item) {
+    if(!item.history || !item.history.length) return '';
+    const labels = { created: 'Creado', edited: 'Editado', scanned: 'Escaneado', migrated: 'Migrado de versión anterior' };
+    const rows = [...item.history].reverse().map(h => `
+      <li>${labels[h.action] || h.action}${h.fields ? ' (' + h.fields.join(', ') + ')' : ''}
+        <div class="when">${new Date(h.at).toLocaleString()}</div>
+      </li>
+    `).join('');
+    return `<h3 style="margin-top:24px;">🕘 Historial</h3><ul class="history-list">${rows}</ul>`;
+  }
+
   function openItemSheet(id, prefill) {
     editingId = id || null;
-    const preset = getCurrentPreset();
-    const item = id ? items.find(it => it.id === id) : (prefill || {});
+    const project = getCurrentProject();
+    const item = id ? items.find(it => it.id === id) : (prefill || { data: {} });
+    const data = item.data || {};
 
     document.getElementById('item-sheet-title').textContent = id ? 'Editar artículo' : 'Nuevo artículo';
-    
+
     let html = '';
-    preset.fields.forEach(f => {
-      let val = item[f.key];
+    project.fields.forEach(f => {
+      let val = data[f.key];
       if(val == null && !id) {
         if(f.default === 'today') val = todayISO();
         else if(f.default != null) val = f.default;
+        if(f.isGroup && activeGroupValue) val = activeGroupValue;
       }
       html += buildFieldInput(f, val);
     });
 
-    // Agregar campo de salón (obligatorio)
-    html += `
-      <div class="field required">
-        <label for="f_salon">Salón</label>
-        <select id="f_salon" data-key="salon">
-          <option value="">— Selecciona salón</option>
-    `;
-    salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).forEach(s => {
-      const selected = item.salon === s.numero ? 'selected' : '';
-      html += `<option value="${s.numero}" ${selected}>Salón ${s.numero}</option>`;
-    });
-    html += `
-        </select>
-      </div>
-    `;
+    html += `<div class="field"><label>Notas generales</label><textarea id="f_general_notes" placeholder="Notas adicionales...">${escapeHTML(item.notes)}</textarea></div>`;
 
     html += `<div class="btn-row"><button class="btn primary" id="btn-save-item">Guardar</button></div>`;
     if(id) {
       html += `<div class="btn-row"><button class="btn danger" id="btn-delete-item">🗑 Eliminar</button></div>`;
     }
+    html += renderHistory(item);
 
     document.getElementById('item-form-fields').innerHTML = html;
     document.getElementById('btn-save-item').onclick = saveItemFromForm;
@@ -1422,15 +1637,31 @@
       };
     }
 
+    project.fields.filter(f => f.type === 'photo' || f.type === 'gps').forEach(f => wireSpecialField(f, item));
+
     showSheet('item-sheet');
   }
 
   function saveItemFromForm() {
-    const preset = getCurrentPreset();
-    const obj = editingId ? items.find(it => it.id === editingId) : { id: uuid(), presetId: preset.id, createdAt: new Date().toISOString() };
-    
+    const project = getCurrentProject();
+    const now = new Date().toISOString();
+    const isNew = !editingId;
+    const obj = editingId ? items.find(it => it.id === editingId) : {
+      id: uuid(), projectId: project.id, data: {},
+      history: [], deleted: false, createdAt: now
+    };
+    const before = JSON.stringify(obj.data || {});
+
     let hasError = false;
-    preset.fields.forEach(f => {
+    const newData = { ...obj.data };
+    project.fields.forEach(f => {
+      if(f.type === 'photo' || f.type === 'gps') {
+        const wrap = document.getElementById('f_' + f.key + '_wrap');
+        const raw = wrap ? wrap.dataset.value : '';
+        if(f.required && !raw) hasError = true;
+        newData[f.key] = f.type === 'gps' ? (raw ? JSON.parse(raw) : null) : (raw || null);
+        return;
+      }
       const el = document.getElementById('f_' + f.key);
       if(!el) return;
       const val = el.value.trim();
@@ -1440,33 +1671,25 @@
       } else {
         el.style.borderColor = '';
       }
-      if(f.type === 'number') obj[f.key] = val ? parseFloat(val) : null;
-      else obj[f.key] = val || null;
+      newData[f.key] = f.type === 'number' ? (val ? parseFloat(val) : null) : (val || null);
     });
 
-    // Validar salón
-    const salonEl = document.getElementById('f_salon');
-    const salonVal = salonEl?.value.trim();
-    if(!salonVal) {
-      hasError = true;
-      if(salonEl) salonEl.style.borderColor = 'var(--danger)';
-    } else {
-      obj.salon = salonVal;
-      if(salonEl) salonEl.style.borderColor = '';
-    }
+    if(hasError) { showToast('⚠️ Completa los campos requeridos'); return; }
 
-    if(hasError) {
-      showToast('⚠️ Completa campos requeridos');
-      return;
-    }
+    obj.data = newData;
+    obj.notes = document.getElementById('f_general_notes').value.trim() || null;
+    obj.updatedAt = now;
 
-    obj.updatedAt = new Date().toISOString();
-    
+    const beforeData = JSON.parse(before);
+    const changedKeys = Object.keys(newData).filter(k => JSON.stringify(newData[k]) !== JSON.stringify(beforeData[k]));
+    obj.history = obj.history || [];
+    obj.history.push(isNew ? { at: now, action: 'created' } : { at: now, action: 'edited', fields: changedKeys.length ? changedKeys : undefined });
+
     const idx = items.findIndex(it => it.id === obj.id);
-    if(idx >= 0) items[idx] = obj;
-    else items.push(obj);
+    if(idx >= 0) items[idx] = obj; else items.push(obj);
 
     idbPut('items', obj).then(() => {
+      markItemDirty(obj.id);
       closeSheet('item-sheet');
       showToast('✓ Guardado');
       render();
@@ -1474,178 +1697,124 @@
   }
 
   function deleteItem(id) {
-    items = items.filter(it => it.id !== id);
-    idbDelete('items', id).then(() => {
+    const idx = items.findIndex(it => it.id === id);
+    if(idx < 0) return;
+    items[idx].deleted = true;
+    items[idx].updatedAt = new Date().toISOString();
+    idbPut('items', items[idx]).then(() => {
+      markItemDirty(id);
       closeSheet('item-sheet');
       showToast('🗑 Eliminado');
       render();
     });
   }
 
-  // ===== PRESETS MANAGEMENT =====
+  // ===== PROJECTS MANAGEMENT =====
   function openSettingsSheet() {
     renderGroupsList();
-    renderSalonesList();
-    setupSalonesTab();
+    renderSyncTab();
+    renderExportTab();
     showSheet('settings-sheet');
   }
 
   function renderGroupsList() {
     const list = document.getElementById('groups-list');
     list.innerHTML = '';
-    presets.forEach(p => {
-      const count = items.filter(it => it.presetId === p.id).length;
+    activeProjectsList().forEach(p => {
+      const count = itemsOfProject(p.id).length;
       const div = document.createElement('div');
       div.className = 'preset-item';
       div.innerHTML = `
         <div class="info">
-          <div class="name">${p.icon} ${escapeHTML(p.name)}</div>
-          <div class="desc">${p.fields.filter(f => f.continuous).length} campos escaneo • ${count} artículos</div>
+          <div class="name">${escapeHTML(p.icon)} ${escapeHTML(p.name)}</div>
+          <div class="desc">${p.fields.length} campos · ${count} artículos</div>
         </div>
         <div class="actions">
-          <button class="btn secondary small" id="edit-${p.id}">✏️</button>
-          <button class="btn danger small" id="del-${p.id}">✕</button>
+          <button class="btn secondary small" id="edit-proj-${p.id}">✏️</button>
         </div>
       `;
       list.appendChild(div);
-      document.getElementById(`edit-${p.id}`).onclick = () => editPreset(p.id);
-      document.getElementById(`del-${p.id}`).onclick = () => deletePreset(p.id);
+      document.getElementById(`edit-proj-${p.id}`).onclick = () => editPreset(p.id);
     });
-
-    // Agregar botón "Nuevo grupo"
-    const btnNewGroup = document.getElementById('btn-new-group');
-    if(btnNewGroup) {
-      btnNewGroup.onclick = newPreset;
-    }
-  }
-
-  function renderSalonesList() {
-    const list = document.getElementById('salones-list');
-    if(!list) return;
-    list.innerHTML = '';
-    salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
-    salones.forEach(s => {
-      const count = items.filter(it => it.salon === s.numero).length;
-      const div = document.createElement('div');
-      div.className = 'preset-item';
-      div.innerHTML = `
-        <div class="info">
-          <div class="name">Salón ${escapeHTML(s.numero)}</div>
-          <div class="desc">${count} artículos</div>
-        </div>
-        <div class="actions">
-          <button class="btn danger small" id="del-salon-${s.id}">✕</button>
-        </div>
-      `;
-      list.appendChild(div);
-      document.getElementById(`del-salon-${s.id}`).onclick = () => deleteSalon(s.id);
-    });
-  }
-
-  function newSalon() {
-    const num = prompt('Número del salón:');
-    if(!num || num.trim() === '') return;
-    
-    const salonNum = num.trim().padStart(3, '0');
-    if(salones.find(s => s.numero === salonNum)) {
-      showToast('⚠️ Salón ya existe');
-      return;
-    }
-
-    const newSalon = {
-      id: 'salon_' + Date.now(),
-      numero: salonNum,
-      nombre: 'Salón ' + salonNum
-    };
-    salones.push(newSalon);
-    idbPut('salones', newSalon).then(() => {
-      showToast('✓ Salón ' + salonNum + ' creado');
-      renderSalonesList();
-    });
-  }
-
-  function deleteSalon(salonId) {
-    const salon = salones.find(s => s.id === salonId);
-    if(!salon) return;
-    if(!confirm('¿Eliminar Salón ' + salon.numero + '?\n\n⚠️ Se eliminarán todos sus artículos')) return;
-    
-    const itemsToDelete = items.filter(it => it.salon === salon.numero);
-    salones = salones.filter(s => s.id !== salonId);
-    items = items.filter(it => it.salon !== salon.numero);
-
-    Promise.all([
-      idbDelete('salones', salonId),
-      ...itemsToDelete.map(it => idbDelete('items', it.id))
-    ]).then(() => {
-      showToast('🗑 Salón eliminado');
-      render();
-      renderSalonesList();
-    });
-  }
-
-  // Event listeners para salones
-  function setupSalonesTab() {
-    const btnNewSalon = document.getElementById('btn-new-salon');
-    if(btnNewSalon) btnNewSalon.onclick = newSalon;
   }
 
   function newPreset() {
-    const newPresetObj = {
-      id: 'preset_' + Date.now(),
-      name: 'Nuevo grupo',
-      icon: '📦',
-      fixedName: '',
+    const newProject = {
+      id: uuid(), name: 'Nuevo proyecto', icon: '📦', fixedName: '',
+      sortOrder: activeProjectsList().length, deleted: false,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       fields: [
         { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
         { key: 'ubicacion', label: 'Ubicación', type: 'text', required: false, continuous: false }
       ]
     };
-    presets.push(newPresetObj);
-    idbPut('presets', newPresetObj).then(() => {
-      editPreset(newPresetObj.id);
+    projects.push(newProject);
+    idbPut('projects', newProject).then(() => {
+      markProjectDirty(newProject.id);
+      editPreset(newProject.id);
     });
   }
 
   function editPreset(presetId) {
-    const preset = presets.find(p => p.id === presetId);
+    const preset = projects.find(p => p.id === presetId);
     if(!preset) return;
 
     document.getElementById('preset-editor-title').textContent = `Editar: ${preset.icon} ${preset.name}`;
-    
+
     let html = `
-      <div class="field required">
-        <label>Nombre del grupo</label>
-        <input type="text" id="preset-name" value="${escapeHTML(preset.name)}">
-      </div>
+      <div class="field required"><label>Nombre del proyecto</label><input type="text" id="preset-name" value="${escapeHTML(preset.name)}"></div>
+      <div class="field required"><label>Emoji</label><input type="text" id="preset-icon" value="${escapeHTML(preset.icon)}" style="font-size: 24px; text-align: center;"></div>
+      <div class="field"><label>Nombre fijo en artículos (opcional)</label><input type="text" id="preset-fixed-name" value="${escapeHTML(preset.fixedName || '')}"><div class="field-hint">Se pre-llena automáticamente en cada artículo, ej. "Chromebook"</div></div>
 
-      <div class="field required">
-        <label>Emoji</label>
-        <input type="text" id="preset-icon" value="${preset.icon}" style="font-size: 24px; text-align: center;">
-      </div>
-
-      <div class="field required">
-        <label>Nombre fijo en artículos</label>
-        <input type="text" id="preset-fixed-name" value="${escapeHTML(preset.fixedName || '')}">
-        <div class="field-hint">Se pre-llena automáticamente en cada artículo</div>
-      </div>
-
-      <h3 style="margin-top: 24px; margin-bottom: 12px;">Campos del grupo</h3>
+      <h3 style="margin-top: 24px; margin-bottom: 12px;">Campos del proyecto</h3>
       <div id="preset-fields-list"></div>
 
       <div class="btn-row" style="margin-bottom: 12px;">
         <button class="btn secondary" id="btn-add-field" style="flex: 1;">➕ Agregar campo</button>
       </div>
-
       <div class="btn-row">
         <button class="btn primary" id="btn-save-preset">Guardar cambios</button>
         <button class="btn secondary" id="btn-cancel-preset">Cancelar</button>
       </div>
+      <div class="btn-row"><button class="btn danger" id="btn-delete-preset">🗑 Eliminar proyecto</button></div>
     `;
-
     document.getElementById('preset-editor-body').innerHTML = html;
 
-    // Render fields
     const fieldsList = document.getElementById('preset-fields-list');
+
+    const renderOptionsEditor = (f, idx) => {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `
+        <div class="chip-list" id="options-chips-${idx}"></div>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="new-option-${idx}" placeholder="Nueva opción..." style="flex:1;">
+          <button type="button" class="btn secondary small" id="add-option-${idx}">➕</button>
+        </div>
+      `;
+      const renderChips = () => {
+        const chipsEl = wrap.querySelector(`#options-chips-${idx}`);
+        chipsEl.innerHTML = '';
+        (f.options || []).forEach((opt, oi) => {
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.innerHTML = `${escapeHTML(opt)} <button type="button">✕</button>`;
+          chip.querySelector('button').onclick = () => { f.options.splice(oi, 1); renderChips(); };
+          chipsEl.appendChild(chip);
+        });
+      };
+      renderChips();
+      wrap.querySelector(`#add-option-${idx}`).onclick = () => {
+        const input = wrap.querySelector(`#new-option-${idx}`);
+        const val = input.value.trim();
+        if(!val) return;
+        f.options = f.options || [];
+        f.options.push(val);
+        input.value = '';
+        renderChips();
+      };
+      return wrap;
+    };
+
     const renderFields = () => {
       fieldsList.innerHTML = '';
       preset.fields.forEach((f, idx) => {
@@ -1654,70 +1823,74 @@
         fieldDiv.innerHTML = `
           <div style="display: flex; gap: 8px; margin-bottom: 12px;">
             <div style="flex: 1;">
-              <div class="field" style="margin-bottom: 8px;">
-                <label>Etiqueta</label>
-                <input type="text" class="field-label" value="${escapeHTML(f.label)}" data-idx="${idx}">
-              </div>
+              <div class="field" style="margin-bottom: 8px;"><label>Etiqueta</label><input type="text" class="field-label" value="${escapeHTML(f.label)}" data-idx="${idx}"></div>
               <div class="field" style="margin-bottom: 0;">
                 <label>Tipo</label>
                 <select class="field-type" data-idx="${idx}">
-                  <option value="text" ${f.type === 'text' ? 'selected' : ''}>Texto</option>
-                  <option value="number" ${f.type === 'number' ? 'selected' : ''}>Número</option>
-                  <option value="select" ${f.type === 'select' ? 'selected' : ''}>Seleccionar</option>
-                  <option value="date" ${f.type === 'date' ? 'selected' : ''}>Fecha</option>
-                  <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Texto largo</option>
+                  ${FIELD_TYPES.map(t => `<option value="${t.value}" ${f.type === t.value ? 'selected' : ''}>${t.label}</option>`).join('')}
                 </select>
               </div>
             </div>
             <button class="btn danger small" id="del-field-${idx}" style="align-self: flex-end; height: 36px;">🗑</button>
           </div>
-          <div style="display: flex; gap: 8px;">
-            <label style="flex: 1; display: flex; align-items: center; gap: 6px;">
-              <input type="checkbox" class="field-continuous" data-idx="${idx}" ${f.continuous ? 'checked' : ''}>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <label style="flex: 1; display: flex; align-items: center; gap: 6px; min-width:120px;">
+              <input type="checkbox" class="field-continuous" data-idx="${idx}" ${f.continuous ? 'checked' : ''} ${['select','photo','gps'].includes(f.type) ? 'disabled' : ''}>
               Escanear
             </label>
-            <label style="flex: 1; display: flex; align-items: center; gap: 6px;">
+            <label style="flex: 1; display: flex; align-items: center; gap: 6px; min-width:120px;">
               <input type="checkbox" class="field-required" data-idx="${idx}" ${f.required ? 'checked' : ''}>
               Obligatorio
             </label>
+            ${f.type === 'select' ? `
+            <label style="flex: 1; display: flex; align-items: center; gap: 6px; min-width:160px;">
+              <input type="checkbox" class="field-group" data-idx="${idx}" ${f.isGroup ? 'checked' : ''}>
+              Usar para filtrar/agrupar
+            </label>` : ''}
           </div>
+          <div id="options-editor-${idx}" style="margin-top:10px;"></div>
         `;
         fieldsList.appendChild(fieldDiv);
-        document.getElementById(`del-field-${idx}`).onclick = () => {
-          preset.fields.splice(idx, 1);
+
+        if(f.type === 'select') {
+          fieldDiv.querySelector(`#options-editor-${idx}`).appendChild(renderOptionsEditor(f, idx));
+        }
+
+        document.getElementById(`del-field-${idx}`).onclick = () => { preset.fields.splice(idx, 1); renderFields(); };
+        fieldDiv.querySelector('.field-type').onchange = (e) => {
+          f.type = e.target.value;
+          if(f.type !== 'select') { f.isGroup = false; }
+          if(['select', 'photo', 'gps'].includes(f.type)) f.continuous = false;
           renderFields();
         };
+        fieldDiv.querySelector('.field-group')?.addEventListener('change', (e) => {
+          if(e.target.checked) preset.fields.forEach((of, oi) => { if(oi !== idx) of.isGroup = false; });
+          f.isGroup = e.target.checked;
+          renderFields();
+        });
       });
     };
-
     renderFields();
 
     document.getElementById('btn-add-field').onclick = () => {
-      preset.fields.push({
-        key: 'field_' + Date.now(),
-        label: 'Nuevo campo',
-        type: 'text',
-        required: false,
-        continuous: false
-      });
+      preset.fields.push({ key: 'field_' + Date.now(), label: 'Nuevo campo', type: 'text', required: false, continuous: false });
       renderFields();
     };
-
     document.getElementById('btn-save-preset').onclick = () => savePresetChanges(presetId);
     document.getElementById('btn-cancel-preset').onclick = () => closeSheet('preset-editor-sheet');
+    document.getElementById('btn-delete-preset').onclick = () => deletePreset(presetId);
 
     showSheet('preset-editor-sheet');
   }
 
   function savePresetChanges(presetId) {
-    const preset = presets.find(p => p.id === presetId);
+    const preset = projects.find(p => p.id === presetId);
     if(!preset) return;
 
-    preset.name = document.getElementById('preset-name').value.trim();
+    preset.name = document.getElementById('preset-name').value.trim() || preset.name;
     preset.icon = document.getElementById('preset-icon').value.trim() || '📦';
     preset.fixedName = document.getElementById('preset-fixed-name').value.trim();
 
-    // Update fields
     const labels = document.querySelectorAll('.field-label');
     const types = document.querySelectorAll('.field-type');
     preset.fields.forEach((f, idx) => {
@@ -1725,30 +1898,37 @@
       f.type = types[idx]?.value || 'text';
       f.continuous = document.querySelector(`.field-continuous[data-idx="${idx}"]`)?.checked || false;
       f.required = document.querySelector(`.field-required[data-idx="${idx}"]`)?.checked || false;
+      f.isGroup = document.querySelector(`.field-group[data-idx="${idx}"]`)?.checked || false;
     });
+    preset.updatedAt = new Date().toISOString();
 
-    idbPut('presets', preset).then(() => {
+    idbPut('projects', preset).then(() => {
+      markProjectDirty(preset.id);
       closeSheet('preset-editor-sheet');
-      showToast('✓ Grupo actualizado');
+      showToast('✓ Proyecto actualizado');
       render();
       openSettingsSheet();
     });
   }
 
   function deletePreset(presetId) {
-    if(!confirm('¿Eliminar este grupo?\n\n⚠️ Se eliminarán todos sus artículos')) return;
-    
-    const itemsToDelete = items.filter(it => it.presetId === presetId);
-    presets = presets.filter(p => p.id !== presetId);
-    items = items.filter(it => it.presetId !== presetId);
-    activePresetId = presets[0]?.id || null;
+    if(!confirm('¿Eliminar este proyecto?\n\n⚠️ Se eliminarán todos sus artículos')) return;
+    const preset = projects.find(p => p.id === presetId);
+    if(!preset) return;
+    preset.deleted = true;
+    preset.updatedAt = new Date().toISOString();
+    const affectedItems = itemsOfProject(presetId);
+    affectedItems.forEach(it => { it.deleted = true; it.updatedAt = preset.updatedAt; });
+    activeProjectId = activeProjectsList().find(p => p.id !== presetId)?.id || null;
 
     Promise.all([
-      idbDelete('presets', presetId),
-      ...itemsToDelete.map(it => idbDelete('items', it.id))
+      idbPut('projects', preset),
+      ...affectedItems.map(it => idbPut('items', it))
     ]).then(() => {
+      markProjectDirty(presetId);
+      affectedItems.forEach(it => markItemDirty(it.id));
       closeSheet('preset-editor-sheet');
-      showToast('🗑 Grupo eliminado');
+      showToast('🗑 Proyecto eliminado');
       render();
       openSettingsSheet();
     });
@@ -1759,10 +1939,390 @@
     document.getElementById('backdrop').classList.add('show');
     document.getElementById(id).classList.add('show');
   }
-
   function closeSheet(id) {
     document.getElementById('backdrop').classList.remove('show');
     document.getElementById(id).classList.remove('show');
+  }
+
+  // ===== EXPORT: EXCEL / CSV / JSON =====
+  function selectedExportProjects() {
+    return activeProjectsList().filter(p => document.getElementById(`exp-proj-${p.id}`)?.checked !== false);
+  }
+
+  function renderExportTab() {
+    const list = document.getElementById('export-project-list');
+    list.innerHTML = '';
+    activeProjectsList().forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'check-row';
+      row.innerHTML = `<input type="checkbox" id="exp-proj-${p.id}" checked><label for="exp-proj-${p.id}">${escapeHTML(p.icon)} ${escapeHTML(p.name)} (${itemsOfProject(p.id).length})</label>`;
+      list.appendChild(row);
+    });
+  }
+
+  function ensureXLSX() {
+    if(window.XLSX) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.onload = resolve;
+      script.onerror = () => {
+        const fb = document.createElement('script');
+        fb.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        fb.onload = resolve;
+        fb.onerror = () => reject(new Error('No se pudo cargar la librería de Excel'));
+        document.head.appendChild(fb);
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  function fieldExportValue(it, f) {
+    const v = it.data[f.key];
+    if(v == null || v === '') return '';
+    if(f.type === 'photo') return v ? 'Sí' : '';
+    if(f.type === 'gps') return v && v.lat != null ? `${v.lat}, ${v.lng}` : '';
+    return v;
+  }
+
+  async function exportToExcel() {
+    try {
+      await ensureXLSX();
+      const wb = XLSX.utils.book_new();
+      const selected = selectedExportProjects();
+      if(!selected.length) { showToast('Selecciona al menos un proyecto'); return; }
+
+      selected.forEach(project => {
+        const gf = groupFieldOf(project);
+        const displayFields = project.fields.filter(f => f !== gf);
+        const headers = ['Código', ...displayFields.filter(f => f.key !== 'codigo').map(f => f.label), 'Creado', 'Actualizado'];
+
+        const buildRows = (list) => list.map(it => [
+          it.data.codigo || '',
+          ...displayFields.filter(f => f.key !== 'codigo').map(f => fieldExportValue(it, f)),
+          it.createdAt ? new Date(it.createdAt).toLocaleString() : '',
+          it.updatedAt ? new Date(it.updatedAt).toLocaleString() : ''
+        ]);
+
+        const allItems = itemsOfProject(project.id);
+
+        if(gf && (gf.options || []).length) {
+          gf.options.forEach(opt => {
+            const groupItems = allItems.filter(it => it.data[gf.key] === opt);
+            const data = [[`${project.name} — ${gf.label}: ${opt}`], [], headers, ...buildRows(groupItems)];
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = headers.map(() => ({ wch: 20 }));
+            XLSX.utils.book_append_sheet(wb, ws, safeSheetName(`${project.name} ${opt}`));
+          });
+        } else {
+          const data = [[project.name], [], headers, ...buildRows(allItems)];
+          const ws = XLSX.utils.aoa_to_sheet(data);
+          ws['!cols'] = headers.map(() => ({ wch: 20 }));
+          XLSX.utils.book_append_sheet(wb, ws, safeSheetName(project.name));
+        }
+      });
+
+      const resumenData = [['RESUMEN GENERAL'], [], ['Proyecto', 'Cantidad total']];
+      let grandTotal = 0;
+      selected.forEach(project => {
+        const list = itemsOfProject(project.id);
+        const hasCantidad = project.fields.some(f => f.key === 'cantidad');
+        const total = hasCantidad ? list.reduce((acc, it) => acc + (Number(it.data.cantidad) || 1), 0) : list.length;
+        grandTotal += total;
+        resumenData.push([project.name, total]);
+      });
+      resumenData.push([], ['TOTAL GENERAL', grandTotal]);
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+      wsResumen['!cols'] = [{ wch: 30 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, wsResumen, 'RESUMEN');
+
+      XLSX.writeFile(wb, `LeapInventory_${todayISO()}.xlsx`);
+      showToast('✓ Exportado a Excel');
+    } catch(err) {
+      console.error(err);
+      showToast('❌ Error exportando Excel');
+    }
+  }
+
+  function csvEscape(val) {
+    const s = val == null ? '' : String(val);
+    if(/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  function exportToCSV() {
+    const selected = selectedExportProjects();
+    if(!selected.length) { showToast('Selecciona al menos un proyecto'); return; }
+
+    const labelOrder = [];
+    const seen = new Set();
+    selected.forEach(p => p.fields.forEach(f => {
+      if(!seen.has(f.label)) { seen.add(f.label); labelOrder.push(f.label); }
+    }));
+
+    const headers = ['Proyecto', ...labelOrder, 'Creado', 'Actualizado'];
+    const rows = [headers];
+
+    selected.forEach(project => {
+      itemsOfProject(project.id).forEach(it => {
+        const row = [project.name];
+        labelOrder.forEach(label => {
+          const f = project.fields.find(pf => pf.label === label);
+          row.push(f ? fieldExportValue(it, f) : '');
+        });
+        row.push(it.createdAt ? new Date(it.createdAt).toLocaleString() : '');
+        row.push(it.updatedAt ? new Date(it.updatedAt).toLocaleString() : '');
+        rows.push(row);
+      });
+    });
+
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `LeapInventory_${todayISO()}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast('✓ Exportado a CSV');
+  }
+
+  async function exportToJSON() {
+    const attachments = await idbGetAll('attachments');
+    const backup = { version: 1, exportedAt: new Date().toISOString(), projects, items, attachments };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `LeapInventory_backup_${todayISO()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast('✓ Respaldo JSON descargado');
+  }
+
+  async function importFromJSON(file) {
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      if(!backup || !Array.isArray(backup.projects) || !Array.isArray(backup.items)) {
+        showToast('❌ Archivo de respaldo inválido');
+        return;
+      }
+      await Promise.all(backup.projects.map(p => idbPut('projects', p)));
+      await Promise.all(backup.items.map(it => idbPut('items', it)));
+      await Promise.all((backup.attachments || []).map(a => idbPut('attachments', a)));
+
+      backup.projects.forEach(p => markProjectDirty(p.id));
+      backup.items.forEach(it => markItemDirty(it.id));
+
+      projects = await idbGetAll('projects');
+      items = await idbGetAll('items');
+      activeProjectId = activeProjectsList()[0]?.id || null;
+      render();
+      openSettingsSheet();
+      showToast('✓ Respaldo importado');
+    } catch(err) {
+      console.error(err);
+      showToast('❌ No se pudo importar el respaldo');
+    }
+  }
+
+  // ===== DANGER ZONE =====
+  function emptyCurrentProject() {
+    const project = getCurrentProject();
+    if(!project) return;
+    const list = itemsOfProject(project.id);
+    if(!list.length) { showToast('Este proyecto ya está vacío'); return; }
+    if(!confirm(`⚠️ Esto borrará ${list.length} artículos de "${project.name}". No se puede deshacer.`)) return;
+    const now = new Date().toISOString();
+    list.forEach(it => { it.deleted = true; it.updatedAt = now; });
+    Promise.all(list.map(it => idbPut('items', it))).then(() => {
+      list.forEach(it => markItemDirty(it.id));
+      showToast('✓ Proyecto vaciado');
+      render();
+    });
+  }
+
+  function deleteAllItems() {
+    const visible = items.filter(it => !it.deleted);
+    if(visible.length === 0) { showToast('No hay artículos para borrar'); return; }
+    if(!confirm(`⚠️ ¿Está seguro?\n\nEsto borrará ${visible.length} artículos de TODOS los proyectos.\n\nEsta acción NO SE PUEDE DESHACER.`)) return;
+    const now = new Date().toISOString();
+    visible.forEach(it => { it.deleted = true; it.updatedAt = now; });
+    Promise.all(visible.map(it => idbPut('items', it))).then(() => {
+      visible.forEach(it => markItemDirty(it.id));
+      showToast('✓ Todos los artículos han sido eliminados');
+      render();
+    });
+  }
+
+  // ===== CLOUD SYNC =====
+  let supaClient = null;
+  function loadSupabaseLib() {
+    if(window.supabase) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('No se pudo cargar el cliente de sincronización'));
+      document.head.appendChild(s);
+    });
+  }
+  function getSupaClient() {
+    if(!supaClient && window.supabase) supaClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return supaClient;
+  }
+
+  function setSyncStatus(text, dotClass) {
+    const line = document.getElementById('sync-status-line');
+    if(line) line.textContent = text;
+    const dot = document.getElementById('sync-dot');
+    if(dot) dot.className = 'sync-dot' + (dotClass ? ' ' + dotClass : '');
+  }
+
+  function genWorkspaceCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for(let i = 0; i < 9; i++) {
+      if(i > 0 && i % 3 === 0) s += '-';
+      s += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return s;
+  }
+
+  function renderSyncTab() {
+    const input = document.getElementById('input-workspace-code');
+    if(input && document.activeElement !== input) input.value = workspaceCode || '';
+    if(!workspaceCode) {
+      setSyncStatus('Sin sincronización configurada');
+    } else if(syncBusy) {
+      setSyncStatus('Sincronizando...', 'busy');
+    } else if(lastSyncAt) {
+      setSyncStatus('Último sync: ' + new Date(lastSyncAt).toLocaleString(), 'on');
+    } else {
+      setSyncStatus('Código guardado. Pendiente de sincronizar.', 'busy');
+    }
+  }
+
+  function mapRemoteProject(rp) {
+    return {
+      id: rp.id, name: rp.name, icon: rp.icon, fixedName: rp.fixed_name,
+      fields: rp.fields || [], sortOrder: rp.sort_order || 0, deleted: !!rp.deleted,
+      createdAt: rp.created_at, updatedAt: rp.updated_at
+    };
+  }
+  function mapRemoteItem(ri) {
+    return {
+      id: ri.id, projectId: ri.project_id, data: ri.data || {},
+      notes: ri.notes, history: ri.history || [], deleted: !!ri.deleted,
+      createdAt: ri.created_at, updatedAt: ri.updated_at
+    };
+  }
+
+  function itemSyncExtras(it) {
+    const project = projects.find(p => p.id === it.projectId);
+    let location = null, gps = null;
+    if(project) {
+      const gf = groupFieldOf(project);
+      if(gf && it.data[gf.key]) location = it.data[gf.key];
+      const gpsField = project.fields.find(f => f.type === 'gps');
+      if(gpsField && it.data[gpsField.key]) gps = it.data[gpsField.key];
+    }
+    return { location, gps };
+  }
+
+  async function syncNow(manual) {
+    if(!workspaceCode) { if(manual) showToast('Configura un código de equipo primero'); return; }
+    if(syncBusy) { if(manual) showToast('Ya hay una sincronización en curso'); return; }
+    syncBusy = true;
+    renderSyncTab();
+    try {
+      await loadSupabaseLib();
+      const client = getSupaClient();
+
+      for(const id of [...dirtyProjectIds]) {
+        const p = projects.find(x => x.id === id);
+        if(!p) { dirtyProjectIds.delete(id); continue; }
+        const gf = groupFieldOf(p);
+        const { error } = await client.rpc('li_upsert_project', {
+          p_code: workspaceCode, p_id: p.id, p_name: p.name, p_icon: p.icon || null,
+          p_fixed_name: p.fixedName || null, p_fields: p.fields || [], p_group_field: gf ? gf.key : null,
+          p_sort_order: p.sortOrder || 0, p_deleted: !!p.deleted, p_updated_at: p.updatedAt
+        });
+        if(error) throw error;
+        dirtyProjectIds.delete(id);
+      }
+      for(const id of [...dirtyItemIds]) {
+        const it = items.find(x => x.id === id);
+        if(!it) { dirtyItemIds.delete(id); continue; }
+        const extras = itemSyncExtras(it);
+        const { error } = await client.rpc('li_upsert_item', {
+          p_code: workspaceCode, p_id: it.id, p_project_id: it.projectId, p_item_code: it.data?.codigo || null,
+          p_data: it.data || {}, p_location: extras.location, p_gps: extras.gps, p_notes: it.notes || null,
+          p_history: it.history || [], p_deleted: !!it.deleted, p_updated_at: it.updatedAt
+        });
+        if(error) throw error;
+        dirtyItemIds.delete(id);
+      }
+      persistDirty();
+
+      const { data: remoteProjects, error: e1 } = await client.rpc('li_get_projects', { p_code: workspaceCode });
+      if(e1) throw e1;
+      const { data: remoteItems, error: e2 } = await client.rpc('li_get_items', { p_code: workspaceCode });
+      if(e2) throw e2;
+
+      for(const rp of (remoteProjects || [])) {
+        const mapped = mapRemoteProject(rp);
+        const local = projects.find(p => p.id === mapped.id);
+        if(!local || new Date(mapped.updatedAt) > new Date(local.updatedAt || 0)) {
+          await idbPut('projects', mapped);
+        }
+      }
+      for(const ri of (remoteItems || [])) {
+        const mapped = mapRemoteItem(ri);
+        const local = items.find(it => it.id === mapped.id);
+        if(!local || new Date(mapped.updatedAt) > new Date(local.updatedAt || 0)) {
+          await idbPut('items', mapped);
+        }
+      }
+
+      projects = await idbGetAll('projects');
+      items = await idbGetAll('items');
+      if(!activeProjectsList().find(p => p.id === activeProjectId)) {
+        activeProjectId = activeProjectsList()[0]?.id || null;
+      }
+
+      lastSyncAt = new Date().toISOString();
+      await idbPut('meta', { key: 'lastSyncAt', value: lastSyncAt });
+      syncBusy = false;
+      renderSyncTab();
+      render();
+      if(manual) showToast('✓ Sincronizado');
+    } catch(err) {
+      console.error(err);
+      syncBusy = false;
+      setSyncStatus('Error de sincronización', 'err');
+      if(manual) showToast('❌ Error al sincronizar');
+    }
+  }
+
+  async function saveWorkspaceCode() {
+    const raw = document.getElementById('input-workspace-code').value.trim().toUpperCase();
+    if(!raw) { showToast('Escribe o genera un código'); return; }
+    workspaceCode = raw;
+    await idbPut('meta', { key: 'workspaceCode', value: workspaceCode });
+    projects.forEach(p => dirtyProjectIds.add(p.id));
+    items.forEach(it => dirtyItemIds.add(it.id));
+    persistDirty();
+    showToast('✓ Código guardado, sincronizando...');
+    syncNow(true);
+  }
+
+  async function disconnectSync() {
+    if(!confirm('¿Desconectar la sincronización en este dispositivo? Tus datos locales se conservan.')) return;
+    workspaceCode = '';
+    await idbPut('meta', { key: 'workspaceCode', value: '' });
+    document.getElementById('input-workspace-code').value = '';
+    renderSyncTab();
+    showToast('Sincronización desconectada');
   }
 
   // ===== EVENTS =====
@@ -1770,293 +2330,84 @@
   document.getElementById('btn-close-settings').onclick = () => closeSheet('settings-sheet');
   document.getElementById('btn-close-preset-editor').onclick = () => closeSheet('preset-editor-sheet');
   document.getElementById('backdrop').onclick = () => {
-    if(document.getElementById('item-sheet').classList.contains('show')) closeSheet('item-sheet');
-    else if(document.getElementById('settings-sheet').classList.contains('show')) closeSheet('settings-sheet');
-    else if(document.getElementById('preset-editor-sheet').classList.contains('show')) closeSheet('preset-editor-sheet');
+    ['item-sheet', 'settings-sheet', 'preset-editor-sheet'].forEach(id => {
+      if(document.getElementById(id).classList.contains('show')) closeSheet(id);
+    });
   };
 
   document.getElementById('btn-scan').onclick = startScanning;
-  // Función para borrar todos los artículos
-  function deleteAllItems() {
-    if(items.length === 0) {
-      showToast('No hay artículos para borrar');
-      return;
-    }
-    
-    const confirmDelete = confirm(`⚠️ ¿Está seguro?\n\nEsto borrará ${items.length} artículos.\n\nEsta acción NO SE PUEDE DESHACER.`);
-    if(!confirmDelete) return;
-    
-    // Borrar todos los items de la BD
-    items.forEach(item => {
-      idbDelete('items', item.id);
-    });
-    
-    items = [];
-    showToast('✓ Todos los artículos han sido eliminados');
-    render();
-  }
-
+  document.getElementById('btn-new-item').onclick = () => openItemSheet(null);
   document.getElementById('btn-settings').onclick = openSettingsSheet;
-  
   document.getElementById('btn-delete-all').onclick = deleteAllItems;
+  document.getElementById('btn-empty-project').onclick = emptyCurrentProject;
+  document.getElementById('btn-sync-now').onclick = () => syncNow(true);
+  document.getElementById('btn-sync-manual').onclick = () => syncNow(true);
+  document.getElementById('btn-generate-code').onclick = () => { document.getElementById('input-workspace-code').value = genWorkspaceCode(); };
+  document.getElementById('btn-save-code').onclick = saveWorkspaceCode;
+  document.getElementById('btn-disconnect-sync').onclick = disconnectSync;
+  document.getElementById('btn-new-group').onclick = newPreset;
+  document.getElementById('btn-open-camera').addEventListener('click', openCamera);
+  document.getElementById('btn-close-camera').addEventListener('click', closeCameraByUser);
 
-  // Tabs
+  document.getElementById('btn-export-excel').onclick = exportToExcel;
+  document.getElementById('btn-export-csv').onclick = exportToCSV;
+  document.getElementById('btn-export-json').onclick = exportToJSON;
+  document.getElementById('input-import-json').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(file) importFromJSON(file);
+    e.target.value = '';
+  });
+
   document.querySelectorAll('.tab').forEach(tab => {
     tab.onclick = () => {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById(tab.dataset.tab).classList.add('active');
+      if(tab.dataset.tab === 'export-tab') renderExportTab();
     };
   });
 
-  // Usar el nuevo campo VISIBLE para escaneo
   const scannerInput = document.getElementById('scanning-input-visible');
-  
-  // Botón cancelar escaneo
-  document.getElementById('btn-cancel-scan').addEventListener('click', () => {
-    stopScanning();
-  });
 
-  // Botón escribir manual durante escaneo
-  document.getElementById('btn-manual-scan').addEventListener('click', () => {
-    openManualInputDuringScan();
-  });
-
-  // Botón cambiar tipo de artículo
+  document.getElementById('btn-cancel-scan').addEventListener('click', () => stopScanning());
+  document.getElementById('btn-manual-scan').addEventListener('click', () => openManualInputDuringScan());
   document.getElementById('btn-change-type').addEventListener('click', () => {
     stopScanning();
-    document.getElementById('item-sheet').classList.add('hidden');
+    document.getElementById('item-sheet').classList.remove('show');
     render();
   });
-
-  // Botón editar último item escaneado
   document.getElementById('btn-edit-last').addEventListener('click', () => {
     if(items.length > 0) {
-      const lastItem = items[items.length - 1];
-      stopScanning();
-      openItemSheet(lastItem.id);
+      const lastItem = [...items].filter(it => !it.deleted).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || '')).pop();
+      if(lastItem) { stopScanning(); openItemSheet(lastItem.id); }
     }
   });
 
-  // Scanner Bluetooth: captura datos del campo VISIBLE
   scannerInput.addEventListener('keydown', (e) => {
-    console.log('keydown en scanning-input-visible:', e.key);
     if(!scanMode) return;
-    
     if(e.key === 'Enter') {
       e.preventDefault();
       const code = scannerInput.value.trim();
-      console.log('✅ ENTER presionado. Código:', code);
-      if(code) {
-        console.log('✅ Procesando código:', code);
-        processScanCode(code);
-        scannerInput.value = '';
-        scannerInput.focus();
-      }
+      if(code) { processScanCode(code); scannerInput.value = ''; scannerInput.focus(); }
     }
   });
-
-  // Escuchar cambios en el campo
-  scannerInput.addEventListener('input', (e) => {
-    console.log('input event. Valor actual:', scannerInput.value);
+  scannerInput.addEventListener('blur', () => {
+    if(scanMode) setTimeout(() => scannerInput.focus(), 50);
   });
-
-  // Mantener el input enfocado durante escaneo
-  scannerInput.addEventListener('blur', (e) => {
-    console.log('blur event, re-enfocando');
-    if(scanMode) {
-      setTimeout(() => {
-        scannerInput.focus();
-        console.log('Input re-enfocado');
-      }, 50);
-    }
-  });
-
-  // Forzar focus inicial cuando comienza escaneo
   document.addEventListener('focusout', (e) => {
-    if(scanMode && e.target !== scannerInput) {
-      console.log('Focus perdido en otro elemento, re-enfocando scanner');
+    if(scanMode && e.target !== scannerInput && !document.getElementById('camera-overlay').contains(e.target)) {
       setTimeout(() => scannerInput.focus(), 10);
     }
   });
 
-  // Export
-  document.getElementById('btn-export').onclick = () => {
-    console.log('Export clickeado. Items:', items.length);
-    if(items.length === 0) { showToast('Sin datos para exportar'); return; }
-    
-    // Cargar SheetJS si no está
-    if(!window.XLSX) {
-      console.log('Cargando SheetJS desde jsdelivr...');
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-      script.onload = () => {
-        console.log('SheetJS cargado. Ejecutando export...');
-        exportToExcel();
-      };
-      script.onerror = () => {
-        console.error('Error cargando SheetJS de jsdelivr, intentando cdnjs...');
-        const scriptFallback = document.createElement('script');
-        scriptFallback.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-        scriptFallback.onload = () => {
-          console.log('SheetJS cargado desde fallback');
-          exportToExcel();
-        };
-        scriptFallback.onerror = () => {
-          console.error('Error en ambos CDN');
-          showToast('❌ Error: No se pudo cargar librería de Excel');
-        };
-        document.head.appendChild(scriptFallback);
-      };
-      document.head.appendChild(script);
-    } else {
-      console.log('SheetJS ya está cargado. Ejecutando export...');
-      exportToExcel();
-    }
-  };
-
-  function exportToExcel() {
-    try {
-      console.log('📊 Iniciando exportación Excel con formato LEAP dinámico...');
-      const wb = XLSX.utils.book_new();
-      
-      // Agrupar items por salón
-      const itemsBySalon = {};
-      salones.forEach(s => {
-        itemsBySalon[s.numero] = [];
-      });
-      items.forEach(it => {
-        if(it.salon && itemsBySalon[it.salon]) {
-          itemsBySalon[it.salon].push(it);
-        }
-      });
-
-      // Crear una hoja por salón (ordenadas)
-      salones.sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).forEach(salon => {
-        const salonItems = itemsBySalon[salon.numero] || [];
-        const data = [];
-        
-        // Encabezado del salón
-        data.push([`SALÓN ${salon.numero}`]);
-        data.push(['Nombre del Maestro:', '']);
-        data.push(['Grado(s) que atiende:', '']);
-        data.push([]);  // Línea en blanco
-        
-        // Agrupar items por tipo de equipo (preset)
-        const itemsByType = {};
-        presets.forEach(p => {
-          itemsByType[p.name] = { preset: p, items: [] };
-        });
-        salonItems.forEach(it => {
-          const preset = presets.find(p => p.id === it.presetId);
-          if(preset && itemsByType[preset.name]) {
-            itemsByType[preset.name].items.push(it);
-          }
-        });
-
-        // Por cada tipo de equipo - CON SUS PROPIOS HEADERS
-        Object.entries(itemsByType).forEach(([typeName, { preset, items: typeItems }]) => {
-          if(typeItems.length > 0 || preset) { // Mostrar tipo aunque esté vacío
-            // Encabezado de tipo
-            data.push([typeName]);
-            
-            // Headers ESPECÍFICOS de este preset (dinámicos)
-            let headers = ['Descripción'];
-            if(preset && preset.fields) {
-              preset.fields.forEach(f => {
-                if(f.key !== 'nombre') {
-                  headers.push(f.label);
-                }
-              });
-            }
-            data.push(headers);
-            data.push([]); // Línea en blanco
-            
-            // Datos de items de ESTE tipo
-            typeItems.forEach(it => {
-              const row = [it.nombre || ''];
-              
-              // Agregar valores de campos específicos de este preset
-              if(preset && preset.fields) {
-                preset.fields.forEach(f => {
-                  if(f.key !== 'nombre') {
-                    row.push(it[f.key] || '');
-                  }
-                });
-              }
-              
-              data.push(row);
-            });
-            
-            data.push([]); // Línea en blanco
-            data.push([`Total de ${typeName}=`, ...Array(headers.length - 1).fill('')]);
-            data.push([]); // Línea en blanco
-          }
-        });
-
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        
-        // Ajustar ancho de columnas
-        ws['!cols'] = [];
-        for(let i = 0; i < 15; i++) {
-          ws['!cols'].push({ wch: 20 });
-        }
-        
-        XLSX.utils.book_append_sheet(wb, ws, `Salón ${salon.numero}`);
-      });
-
-      // Hoja de RESUMEN
-      const resumenData = [];
-      resumenData.push(['RESUMEN GENERAL']);
-      resumenData.push([]);
-      resumenData.push(['Tipo Equipo', 'Cantidad Total']);
-      
-      const countByType = {};
-      presets.forEach(p => {
-        countByType[p.name] = 0;
-      });
-      
-      items.forEach(it => {
-        const preset = presets.find(p => p.id === it.presetId);
-        if(preset) {
-          countByType[preset.name] += (it.cantidad || 1);
-        }
-      });
-
-      Object.entries(countByType).forEach(([type, count]) => {
-        if(count > 0) {
-          resumenData.push([type, count]);
-        }
-      });
-
-      resumenData.push([]);
-      resumenData.push(['TOTAL GENERAL', Object.values(countByType).reduce((a, b) => a + b, 0)]);
-
-      const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
-      wsResumen['!cols'] = [{ wch: 25 }, { wch: 15 }];
-      XLSX.utils.book_append_sheet(wb, wsResumen, 'RESUMEN');
-
-      // Descargar
-      console.log('Descargando archivo...');
-      XLSX.writeFile(wb, `Inventario_LEAP_${todayISO()}.xlsx`);
-      console.log('✅ Archivo descargado');
-      showToast('✓ Exportado a Excel (formato LEAP dinámico)');
-    } catch(err) {
-      console.error('❌ Error en exportación:', err);
-      showToast('❌ Error exportando Excel');
-    }
-  }
-
-
+  window.addEventListener('online', () => { if(workspaceCode) syncNow(false); });
+  setInterval(() => { if(workspaceCode) syncNow(false); }, 30000);
 
   // Init
-  console.log('🚀 Iniciando Inventario Escolar Pro...');
-  initDB().then(() => {
-    console.log('✅ Base de datos inicializada');
-    initData();
-  }).catch(err => {
+  initDB().then(initData).catch(err => {
     console.error('❌ Error en inicialización:', err);
+    showToast('❌ Error iniciando la app');
   });
 </script>
 
