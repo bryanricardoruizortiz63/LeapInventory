@@ -2016,30 +2016,90 @@
       const selected = selectedExportProjects();
       if(!selected.length) { showToast('Selecciona al menos un proyecto'); return; }
 
+      const buildRow = (it, project, displayFields) => [
+        it.data.codigo || '',
+        ...displayFields.filter(f => f.key !== 'codigo').map(f => fieldExportValue(it, f)),
+        it.createdAt ? new Date(it.createdAt).toLocaleString() : '',
+        it.updatedAt ? new Date(it.updatedAt).toLocaleString() : ''
+      ];
+
+      // Cuando varios proyectos comparten el mismo campo agrupador (ej. varios
+      // tipos de artículo con un campo "Salón" con las mismas opciones), las
+      // hojas se dividen por ese valor en vez de por proyecto, mezclando ahí
+      // los artículos de todos esos proyectos. Un proyecto cuyo campo
+      // agrupador no comparte ningún otro (o que no tiene uno) mantiene una
+      // hoja propia, como antes.
+      const UNASSIGNED = '(Sin asignar)';
+      const sharedGroups = new Map();
+      const soloProjects = [];
+
       selected.forEach(project => {
+        const gf = groupFieldOf(project);
+        const label = gf ? gf.label.trim().toLowerCase() : null;
+        if(!label) { soloProjects.push(project); return; }
+        if(!sharedGroups.has(label)) sharedGroups.set(label, []);
+        sharedGroups.get(label).push(project);
+      });
+
+      sharedGroups.forEach((groupProjects) => {
+        if(groupProjects.length === 1) { soloProjects.push(groupProjects[0]); return; }
+
+        const optionsSet = new Set();
+        const unionLabels = [];
+        const seenLabels = new Set();
+        groupProjects.forEach(p => {
+          const gf = groupFieldOf(p);
+          (gf.options || []).forEach(o => optionsSet.add(o));
+          itemsOfProject(p.id).forEach(it => optionsSet.add(it.data[gf.key] || UNASSIGNED));
+          p.fields.forEach(f => {
+            if(f === gf || f.key === 'codigo') return;
+            if(!seenLabels.has(f.label)) { seenLabels.add(f.label); unionLabels.push(f.label); }
+          });
+        });
+
+        const headers = ['Proyecto', 'Código', ...unionLabels, 'Creado', 'Actualizado'];
+
+        [...optionsSet].forEach(opt => {
+          const rows = [];
+          groupProjects.forEach(project => {
+            const gf = groupFieldOf(project);
+            itemsOfProject(project.id)
+              .filter(it => (it.data[gf.key] || UNASSIGNED) === opt)
+              .forEach(it => {
+                const row = [project.name, it.data.codigo || ''];
+                unionLabels.forEach(label => {
+                  const f = project.fields.find(pf => pf.label === label);
+                  row.push(f ? fieldExportValue(it, f) : '');
+                });
+                row.push(it.createdAt ? new Date(it.createdAt).toLocaleString() : '');
+                row.push(it.updatedAt ? new Date(it.updatedAt).toLocaleString() : '');
+                rows.push(row);
+              });
+          });
+          if(!rows.length) return;
+          const data = [[opt], [], headers, ...rows];
+          const ws = XLSX.utils.aoa_to_sheet(data);
+          ws['!cols'] = headers.map(() => ({ wch: 20 }));
+          XLSX.utils.book_append_sheet(wb, ws, safeSheetName(opt));
+        });
+      });
+
+      soloProjects.forEach(project => {
         const gf = groupFieldOf(project);
         const displayFields = project.fields.filter(f => f !== gf);
         const headers = ['Código', ...displayFields.filter(f => f.key !== 'codigo').map(f => f.label), 'Creado', 'Actualizado'];
-
-        const buildRows = (list) => list.map(it => [
-          it.data.codigo || '',
-          ...displayFields.filter(f => f.key !== 'codigo').map(f => fieldExportValue(it, f)),
-          it.createdAt ? new Date(it.createdAt).toLocaleString() : '',
-          it.updatedAt ? new Date(it.updatedAt).toLocaleString() : ''
-        ]);
-
         const allItems = itemsOfProject(project.id);
 
         if(gf && (gf.options || []).length) {
           gf.options.forEach(opt => {
             const groupItems = allItems.filter(it => it.data[gf.key] === opt);
-            const data = [[`${project.name} — ${gf.label}: ${opt}`], [], headers, ...buildRows(groupItems)];
+            const data = [[`${project.name} — ${gf.label}: ${opt}`], [], headers, ...groupItems.map(it => buildRow(it, project, displayFields))];
             const ws = XLSX.utils.aoa_to_sheet(data);
             ws['!cols'] = headers.map(() => ({ wch: 20 }));
             XLSX.utils.book_append_sheet(wb, ws, safeSheetName(`${project.name} ${opt}`));
           });
         } else {
-          const data = [[project.name], [], headers, ...buildRows(allItems)];
+          const data = [[project.name], [], headers, ...allItems.map(it => buildRow(it, project, displayFields))];
           const ws = XLSX.utils.aoa_to_sheet(data);
           ws['!cols'] = headers.map(() => ({ wch: 20 }));
           XLSX.utils.book_append_sheet(wb, ws, safeSheetName(project.name));
