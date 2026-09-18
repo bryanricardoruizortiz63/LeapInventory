@@ -6,22 +6,25 @@ crear ni configurar nada tú mismo).
 
 ## Cómo usarla
 
-1. Abre **⚙︎ Ajustes → Sincronización**.
+La sincronización es **por proyecto**: cada proyecto (⚙︎ Ajustes →
+Proyectos) tiene su propio código de equipo independiente. Sincronizar el
+proyecto "Escuela Norte" nunca mezcla sus datos con los del proyecto
+"Bodega central", aunque ambos estén sincronizados a la vez en el mismo
+dispositivo.
+
+1. Activa el proyecto que quieres compartir y abre **⚙︎ Ajustes →
+   Sincronización**.
 2. Toca **🎲 Generar código nuevo** (o escribe uno propio) y **Guardar**.
-3. En cada otro dispositivo, entra el **mismo código** en esa misma pantalla.
-4. Todos los dispositivos con ese código verán y editarán el mismo
-   inventario. La app sincroniza sola cada ~30 segundos, al reconectarse a
+3. En cada otro dispositivo, activa el proyecto correspondiente (o crea uno)
+   y entra el **mismo código** en esa misma pantalla.
+4. Todos los dispositivos con ese código verán y editarán los artículos de
+   ese proyecto. La app sincroniza sola cada ~30 segundos, al reconectarse a
    internet y unos segundos después de cada cambio; también puedes tocar
-   **☁︎ Sincronizar ahora** en cualquier momento.
+   **☁︎ Sincronizar ahora** en cualquier momento (sincroniza todos los
+   proyectos que tengan código configurado en este dispositivo).
 
 Si nunca configuras un código, la app sigue funcionando 100% local/offline
-como antes — la sincronización es opcional.
-
-Lo que se sincroniza es el nivel de **artículo** (ej. "Chromebooks",
-"Armario") y lo escaneado en cada uno. El nivel de **proyecto** (⚙︎ Ajustes
-→ Proyectos) es una agrupación local a cada dispositivo: si creas un
-artículo nuevo estando en el código de equipo, otros dispositivos lo verán,
-pero cada uno decide en qué proyecto local lo clasifica.
+como antes — la sincronización es opcional, y lo es proyecto por proyecto.
 
 ## Dispositivos conectados
 
@@ -75,6 +78,7 @@ de Storage — no está incluido en esta versión para mantener el uso simple
 - Los artículos y artículos escaneados borrados se marcan como eliminados
   (no se borran físicamente) para poder avisar a otros dispositivos que
   también deben ocultarlos al sincronizar.
-- El nivel de **proyecto** (la agrupación de artículos que ves en ⚙︎ Ajustes
-  → Proyectos) no se sincroniza: es local a cada dispositivo y no tiene
-  tabla propia en la nube.
+- El **proyecto** en sí (su nombre, y cuáles artículos le pertenecen) es
+  local a cada dispositivo y no tiene tabla propia en la nube. Lo que viaja
+  por un código de equipo son los artículos y sus artículos escaneados; cada
+  dispositivo decide en qué proyecto local los clasifica al recibirlos.

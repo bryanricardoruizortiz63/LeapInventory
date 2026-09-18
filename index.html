@@ -835,6 +835,9 @@
         <input type="text" id="input-device-name" placeholder="Ej: iPhone de Bryan">
         <div class="field-hint">Así lo identificas en la lista de dispositivos conectados.</div>
       </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-save-device-name">Guardar nombre</button>
+      </div>
       <div id="devices-section" class="hidden">
         <h3>Dispositivos conectados</h3>
         <div id="devices-list"></div>
@@ -892,12 +895,12 @@
   let activeProjectId = null, activeGroupValue = null, activeProyectoId = null;
   let editingId = null;
   let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
-  let workspaceCode = '', lastSyncAt = null, syncBusy = false;
+  let syncBusy = false;
   let dirtyProjectIds = new Set(), dirtyItemIds = new Set();
   let syncDebounceTimer = null;
   let html5QrInstance = null;
   let cameraModeActive = false;
-  let deviceId = '', deviceName = '', devices = [];
+  let deviceId = '', deviceName = '', devicesByProyecto = {};
 
   const FIELD_TYPES = [
     { value: 'text', label: 'Texto' },
@@ -1075,9 +1078,8 @@
     idbPut('meta', { key: 'dirty', projects: [...dirtyProjectIds], items: [...dirtyItemIds] });
   }
   function scheduleAutoSync() {
-    if(!workspaceCode) return;
     clearTimeout(syncDebounceTimer);
-    syncDebounceTimer = setTimeout(() => syncNow(false), 2500);
+    syncDebounceTimer = setTimeout(() => syncAllConfiguredProyectos(false), 2500);
   }
 
   // ===== INIT / MIGRATION =====
@@ -1087,8 +1089,6 @@
     const metaRows = await idbGetAll('meta');
     const meta = {};
     metaRows.forEach(r => meta[r.key] = r);
-    workspaceCode = meta.workspaceCode ? meta.workspaceCode.value : '';
-    lastSyncAt = meta.lastSyncAt ? meta.lastSyncAt.value : null;
     dirtyProjectIds = new Set(meta.dirty ? meta.dirty.projects : []);
     dirtyItemIds = new Set(meta.dirty ? meta.dirty.items : []);
 
@@ -1121,7 +1121,7 @@
       await idbPut('projects', example);
     }
 
-    await ensureProyectos();
+    await ensureProyectos(meta.workspaceCode ? meta.workspaceCode.value : '');
     await healInvalidIds();
 
     activeProjectId = activeProjectsList()[0]?.id || null;
@@ -1130,7 +1130,7 @@
 
     render();
     renderSyncTab();
-    if(workspaceCode) syncNow(false);
+    syncAllConfiguredProyectos(false);
   }
 
   async function migrateLegacyData(legacyPresets) {
@@ -1788,6 +1788,11 @@
     showSheet('settings-sheet');
   }
 
+  function openExportTab() {
+    openSettingsSheet();
+    document.querySelector('.tab[data-tab="export-tab"]').click();
+  }
+
   function renderGroupsList() {
     const list = document.getElementById('groups-list');
     list.innerHTML = '';
@@ -1810,15 +1815,29 @@
   }
 
   // ===== PROYECTOS (contenedores de nivel superior, locales al dispositivo) =====
-  async function ensureProyectos() {
+  // Cada proyecto sincroniza con su propio código de equipo (workspaceCode) y
+  // lleva su propia marca de última sincronización (lastSyncAt), para que la
+  // nube separe los datos de un proyecto de los de otro.
+  async function ensureProyectos(legacyWorkspaceCode) {
     proyectos = await idbGetAll('proyectos');
     if(proyectos.length === 0) {
       const def = {
         id: uuid(), name: 'Mi inventario', sortOrder: 0, deleted: false,
+        workspaceCode: legacyWorkspaceCode || '', lastSyncAt: null,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       };
       proyectos = [def];
       await idbPut('proyectos', def);
+    } else if(legacyWorkspaceCode && !proyectos.some(p => p.workspaceCode)) {
+      // Viene de una versión donde el código de sincronización era global al
+      // dispositivo (antes de que existiera el proyecto): se hereda en el
+      // primer proyecto para no perder la sincronización ya configurada.
+      const first = activeProyectosList()[0];
+      if(first) {
+        first.workspaceCode = legacyWorkspaceCode;
+        first.updatedAt = new Date().toISOString();
+        await idbPut('proyectos', first);
+      }
     }
     const validIds = new Set(activeProyectosList().map(p => p.id));
     const fallbackId = activeProyectosList()[0]?.id || null;
@@ -1841,6 +1860,7 @@
     activeGroupValue = gf ? (gf.options || [])[0] || null : null;
     renderProyectosTab();
     renderGroupsList();
+    renderSyncTab();
     renderExportTab();
     render();
   }
@@ -1850,6 +1870,7 @@
     if(!name || !name.trim()) return;
     const newP = {
       id: uuid(), name: name.trim(), sortOrder: activeProyectosList().length, deleted: false,
+      workspaceCode: '', lastSyncAt: null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
     proyectos.push(newP);
@@ -1914,20 +1935,21 @@
       const isActive = p.id === activeProyectoId;
       const div = document.createElement('div');
       div.className = 'preset-item';
-      if(isActive) div.style.cssText = 'border-color: var(--primary); border-width: 2px;';
+      if(isActive) div.style.cssText = 'border-color: var(--primary); border-width: 2px; background: #eff6ff;';
       div.innerHTML = `
-        <div class="info">
-          <div class="name">${isActive ? '✓ ' : ''}${escapeHTML(p.name)}</div>
-          <div class="desc">${count} artículo(s)${isActive ? ' · activo' : ''}</div>
+        <div class="info" id="info-proyecto-${p.id}" style="${isActive ? '' : 'cursor: pointer;'}">
+          <div class="name">${isActive ? '✅' : '⚪'} ${escapeHTML(p.name)}</div>
+          <div class="desc">${count} artículo(s)${isActive ? ' · proyecto activo' : ' · toca para activar'}</div>
         </div>
         <div class="actions">
-          ${isActive ? '' : `<button class="btn secondary small" id="switch-proyecto-${p.id}">Activar</button>`}
           <button class="btn secondary small" id="rename-proyecto-${p.id}">✏️</button>
           <button class="btn danger small" id="delete-proyecto-${p.id}">🗑</button>
         </div>
       `;
       list.appendChild(div);
-      document.getElementById(`switch-proyecto-${p.id}`)?.addEventListener('click', () => switchProyecto(p.id));
+      if(!isActive) {
+        document.getElementById(`info-proyecto-${p.id}`).addEventListener('click', () => switchProyecto(p.id));
+      }
       document.getElementById(`rename-proyecto-${p.id}`).onclick = () => renameProyecto(p.id);
       document.getElementById(`delete-proyecto-${p.id}`).onclick = () => deleteProyecto(p.id);
     });
@@ -2456,16 +2478,18 @@
   }
 
   function renderSyncTab() {
+    const proyecto = getCurrentProyecto();
+    const code = proyecto?.workspaceCode || '';
     const input = document.getElementById('input-workspace-code');
-    if(input && document.activeElement !== input) input.value = workspaceCode || '';
+    if(input && document.activeElement !== input) input.value = code;
     const nameInput = document.getElementById('input-device-name');
     if(nameInput && document.activeElement !== nameInput) nameInput.value = deviceName || '';
-    if(!workspaceCode) {
-      setSyncStatus('Sin sincronización configurada');
+    if(!code) {
+      setSyncStatus('Sin sincronización configurada para este proyecto');
     } else if(syncBusy) {
       setSyncStatus('Sincronizando...', 'busy');
-    } else if(lastSyncAt) {
-      setSyncStatus('Último sync: ' + new Date(lastSyncAt).toLocaleString(), 'on');
+    } else if(proyecto.lastSyncAt) {
+      setSyncStatus('Último sync: ' + new Date(proyecto.lastSyncAt).toLocaleString(), 'on');
     } else {
       setSyncStatus('Código guardado. Pendiente de sincronizar.', 'busy');
     }
@@ -2474,17 +2498,20 @@
 
   function saveDeviceName() {
     const val = document.getElementById('input-device-name').value.trim();
-    if(val === deviceName) return;
     deviceName = val;
-    idbPut('meta', { key: 'deviceName', value: deviceName });
-    if(workspaceCode) scheduleAutoSync();
+    idbPut('meta', { key: 'deviceName', value: deviceName }).then(() => {
+      showToast('✓ Nombre del dispositivo guardado');
+      scheduleAutoSync();
+    });
   }
 
   function renderDevicesList() {
     const section = document.getElementById('devices-section');
     const list = document.getElementById('devices-list');
     if(!section || !list) return;
-    if(!workspaceCode || devices.length === 0) {
+    const proyecto = getCurrentProyecto();
+    const devices = (proyecto && devicesByProyecto[proyecto.id]) || [];
+    if(!proyecto?.workspaceCode || devices.length === 0) {
       section.classList.add('hidden');
       return;
     }
@@ -2534,11 +2561,18 @@
     return { location, gps };
   }
 
-  async function syncNow(manual) {
-    if(!workspaceCode) { if(manual) showToast('Configura un código de equipo primero'); return; }
+  // Cada proyecto sincroniza con su propio código: sincronizar el proyecto A
+  // nunca toca ni mezcla los datos del proyecto B, aunque ambos tengan
+  // sincronización activa en el mismo dispositivo.
+  async function syncNow(manual, proyectoId) {
+    const targetId = proyectoId || activeProyectoId;
+    const proyecto = proyectos.find(p => p.id === targetId);
+    const code = proyecto?.workspaceCode;
+    if(!proyecto || !code) { if(manual) showToast('Configura un código de equipo primero'); return; }
     if(syncBusy) { if(manual) showToast('Ya hay una sincronización en curso'); return; }
+    const isVisible = targetId === activeProyectoId;
     syncBusy = true;
-    renderSyncTab();
+    if(isVisible) renderSyncTab();
     try {
       await loadSupabaseLib();
       const client = getSupaClient();
@@ -2551,10 +2585,11 @@
       for(const id of [...dirtyProjectIds]) {
         const p = projects.find(x => x.id === id);
         if(!p) { dirtyProjectIds.delete(id); continue; }
+        if(p.proyectoId !== targetId) continue;
         if(!isValidUUID(p.id)) { pushErrors.push(`Artículo "${p.name}" tiene un id inválido`); continue; }
         const gf = groupFieldOf(p);
         const { error } = await client.rpc('li_upsert_project', {
-          p_code: workspaceCode, p_id: p.id, p_name: p.name, p_icon: p.icon || null,
+          p_code: code, p_id: p.id, p_name: p.name, p_icon: p.icon || null,
           p_fixed_name: p.fixedName || null, p_fields: p.fields || [], p_group_field: gf ? gf.key : null,
           p_sort_order: p.sortOrder || 0, p_deleted: !!p.deleted, p_updated_at: p.updatedAt
         });
@@ -2564,10 +2599,12 @@
       for(const id of [...dirtyItemIds]) {
         const it = items.find(x => x.id === id);
         if(!it) { dirtyItemIds.delete(id); continue; }
+        const parentProject = projects.find(pp => pp.id === it.projectId);
+        if(!parentProject || parentProject.proyectoId !== targetId) continue;
         if(!isValidUUID(it.id) || !isValidUUID(it.projectId)) { pushErrors.push(`Artículo "${it.data?.codigo || it.id}" tiene un id inválido`); continue; }
         const extras = itemSyncExtras(it);
         const { error } = await client.rpc('li_upsert_item', {
-          p_code: workspaceCode, p_id: it.id, p_project_id: it.projectId, p_item_code: it.data?.codigo || null,
+          p_code: code, p_id: it.id, p_project_id: it.projectId, p_item_code: it.data?.codigo || null,
           p_data: it.data || {}, p_location: extras.location, p_gps: extras.gps, p_notes: it.notes || null,
           p_history: it.history || [], p_deleted: !!it.deleted, p_updated_at: it.updatedAt
         });
@@ -2576,17 +2613,17 @@
       }
       persistDirty();
 
-      const { data: remoteProjects, error: e1 } = await client.rpc('li_get_projects', { p_code: workspaceCode });
+      const { data: remoteProjects, error: e1 } = await client.rpc('li_get_projects', { p_code: code });
       if(e1) throw e1;
-      const { data: remoteItems, error: e2 } = await client.rpc('li_get_items', { p_code: workspaceCode });
+      const { data: remoteItems, error: e2 } = await client.rpc('li_get_items', { p_code: code });
       if(e2) throw e2;
 
       for(const rp of (remoteProjects || [])) {
         const mapped = mapRemoteProject(rp);
+        // Cada código de equipo pertenece a un solo proyecto local, así que
+        // cualquier artículo que llegue por este código es de este proyecto.
+        mapped.proyectoId = targetId;
         const local = projects.find(p => p.id === mapped.id);
-        // "proyectoId" es una agrupación local (no viaja en la nube); se conserva
-        // la del dispositivo, o se asigna al proyecto activo si es nuevo aquí.
-        mapped.proyectoId = local ? local.proyectoId : activeProyectoId;
         if(!local || new Date(mapped.updatedAt) > new Date(local.updatedAt || 0)) {
           await idbPut('projects', mapped);
         }
@@ -2601,9 +2638,9 @@
 
       // Aviso de presencia: no debe bloquear el resto del sync si falla.
       try {
-        await client.rpc('li_upsert_device', { p_code: workspaceCode, p_device_id: deviceId, p_name: deviceName || null });
-        const { data: remoteDevices } = await client.rpc('li_get_devices', { p_code: workspaceCode });
-        devices = remoteDevices || [];
+        await client.rpc('li_upsert_device', { p_code: code, p_device_id: deviceId, p_name: deviceName || null });
+        const { data: remoteDevices } = await client.rpc('li_get_devices', { p_code: code });
+        devicesByProyecto[targetId] = remoteDevices || [];
       } catch(devErr) {
         console.error(devErr);
       }
@@ -2614,15 +2651,15 @@
         activeProjectId = activeProjectsList()[0]?.id || null;
       }
 
-      lastSyncAt = new Date().toISOString();
-      await idbPut('meta', { key: 'lastSyncAt', value: lastSyncAt });
+      proyecto.lastSyncAt = new Date().toISOString();
+      await idbPut('proyectos', proyecto);
       syncBusy = false;
-      renderSyncTab();
+      if(isVisible) renderSyncTab();
       render();
 
       if(pushErrors.length) {
         const detail = pushErrors.join('; ');
-        setSyncStatus('Sincronizado con errores: ' + detail, 'err');
+        if(isVisible) setSyncStatus('Sincronizado con errores: ' + detail, 'err');
         if(manual) showToast('⚠️ Sincronizado, pero hubo errores: ' + detail, 4000);
       } else if(manual) {
         showToast('✓ Sincronizado');
@@ -2631,29 +2668,42 @@
       console.error(err);
       syncBusy = false;
       const detail = err?.message || err?.error_description || err?.hint || (typeof err === 'string' ? err : '');
-      setSyncStatus('Error de sincronización' + (detail ? ': ' + detail : ''), 'err');
+      if(isVisible) setSyncStatus('Error de sincronización' + (detail ? ': ' + detail : ''), 'err');
       if(manual) showToast('❌ Error al sincronizar' + (detail ? ': ' + detail : ''), 3500);
+    }
+  }
+
+  async function syncAllConfiguredProyectos(manual) {
+    const withCode = activeProyectosList().filter(p => p.workspaceCode);
+    for(const p of withCode) {
+      await syncNow(manual, p.id);
     }
   }
 
   async function saveWorkspaceCode() {
     const raw = normalizeWorkspaceCode(document.getElementById('input-workspace-code').value);
     if(!raw) { showToast('Escribe o genera un código'); return; }
-    workspaceCode = raw;
-    await idbPut('meta', { key: 'workspaceCode', value: workspaceCode });
-    projects.forEach(p => dirtyProjectIds.add(p.id));
-    items.forEach(it => dirtyItemIds.add(it.id));
+    const proyecto = getCurrentProyecto();
+    if(!proyecto) return;
+    proyecto.workspaceCode = raw;
+    await idbPut('proyectos', proyecto);
+    projects.filter(p => p.proyectoId === proyecto.id).forEach(p => dirtyProjectIds.add(p.id));
+    items
+      .filter(it => projects.find(p => p.id === it.projectId)?.proyectoId === proyecto.id)
+      .forEach(it => dirtyItemIds.add(it.id));
     persistDirty();
-    showToast('✓ Código guardado, sincronizando...');
-    syncNow(true);
+    showToast(`✓ Código guardado para "${proyecto.name}", sincronizando...`);
+    syncNow(true, proyecto.id);
   }
 
   async function disconnectSync() {
-    if(!confirm('¿Desconectar la sincronización en este dispositivo? Tus datos locales se conservan.')) return;
-    workspaceCode = '';
-    await idbPut('meta', { key: 'workspaceCode', value: '' });
+    const proyecto = getCurrentProyecto();
+    if(!proyecto) return;
+    if(!confirm(`¿Desconectar la sincronización del proyecto "${proyecto.name}" en este dispositivo? Tus datos locales se conservan.`)) return;
+    proyecto.workspaceCode = '';
+    await idbPut('proyectos', proyecto);
     document.getElementById('input-workspace-code').value = '';
-    devices = [];
+    delete devicesByProyecto[proyecto.id];
     renderSyncTab();
     showToast('Sincronización desconectada');
   }
@@ -2672,14 +2722,15 @@
   document.getElementById('btn-new-item').onclick = () => openItemSheet(null);
   document.getElementById('btn-settings').onclick = openSettingsSheet;
   document.getElementById('proyecto-indicator').onclick = openSettingsSheet;
+  document.getElementById('btn-export').onclick = openExportTab;
   document.getElementById('btn-delete-all').onclick = deleteAllItems;
   document.getElementById('btn-empty-project').onclick = emptyCurrentProject;
-  document.getElementById('btn-sync-now').onclick = () => syncNow(true);
+  document.getElementById('btn-sync-now').onclick = () => syncAllConfiguredProyectos(true);
   document.getElementById('btn-sync-manual').onclick = () => syncNow(true);
   document.getElementById('btn-generate-code').onclick = () => { document.getElementById('input-workspace-code').value = genWorkspaceCode(); };
   document.getElementById('btn-save-code').onclick = saveWorkspaceCode;
   document.getElementById('btn-disconnect-sync').onclick = disconnectSync;
-  document.getElementById('input-device-name').addEventListener('blur', saveDeviceName);
+  document.getElementById('btn-save-device-name').onclick = saveDeviceName;
   document.getElementById('btn-new-group').onclick = newPreset;
   document.getElementById('btn-new-proyecto').onclick = newProyecto;
   document.getElementById('btn-open-camera').addEventListener('click', openCamera);
@@ -2737,8 +2788,8 @@
     }
   });
 
-  window.addEventListener('online', () => { if(workspaceCode) syncNow(false); });
-  setInterval(() => { if(workspaceCode) syncNow(false); }, 30000);
+  window.addEventListener('online', () => syncAllConfiguredProyectos(false));
+  setInterval(() => syncAllConfiguredProyectos(false), 30000);
 
   // Init
   initDB().then(initData).catch(err => {
