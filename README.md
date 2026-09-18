@@ -1,4 +1,4 @@
-# 📦 LeapInventory
+# 📦 B Scan Inventory
 
 App web (PWA) de inventario con escaneo de códigos de barras/QR, inspirada en las
 funciones clave de [Orca Scan](https://apps.apple.com/us/app/barcode-scanner-orca-scan/id1161117971):
