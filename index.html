@@ -956,6 +956,43 @@
     });
   }
 
+  function isValidUUID(v) {
+    return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+  }
+
+  // Versiones muy antiguas de la app (antes de usar UUIDs) guardaban el id de
+  // cada preset/artículo como texto simple (ej. "armario"). La columna "uuid"
+  // en la nube rechaza esos valores, así que aquí se reemplazan por UUIDs
+  // válidos una sola vez, conservando las referencias entre artículo y proyecto.
+  async function healInvalidIds() {
+    const projectIdMap = new Map();
+    for(const p of projects) {
+      if(isValidUUID(p.id)) continue;
+      const oldId = p.id;
+      const newId = uuid();
+      projectIdMap.set(oldId, newId);
+      await idbDelete('projects', oldId);
+      p.id = newId;
+      p.updatedAt = new Date().toISOString();
+      await idbPut('projects', p);
+      markProjectDirty(newId);
+    }
+    for(const it of items) {
+      let changed = false;
+      if(projectIdMap.has(it.projectId)) { it.projectId = projectIdMap.get(it.projectId); changed = true; }
+      if(!isValidUUID(it.id)) {
+        await idbDelete('items', it.id);
+        it.id = uuid();
+        changed = true;
+      }
+      if(changed) {
+        it.updatedAt = new Date().toISOString();
+        await idbPut('items', it);
+        markItemDirty(it.id);
+      }
+    }
+  }
+
   function todayISO() { return new Date().toISOString().slice(0, 10); }
 
   function showToast(msg, duration = 2000) {
@@ -1046,6 +1083,8 @@
       projects = [example];
       await idbPut('projects', example);
     }
+
+    await healInvalidIds();
 
     activeProjectId = activeProjectsList()[0]?.id || null;
     const gf = groupFieldOf(getCurrentProject());
@@ -2231,28 +2270,35 @@
       await loadSupabaseLib();
       const client = getSupaClient();
 
+      // Un registro inválido (ej. id heredado que no es UUID) no debe bloquear
+      // la sincronización del resto; se recolectan los errores y se avisan al
+      // final, después de intentar todo lo demás.
+      const pushErrors = [];
+
       for(const id of [...dirtyProjectIds]) {
         const p = projects.find(x => x.id === id);
         if(!p) { dirtyProjectIds.delete(id); continue; }
+        if(!isValidUUID(p.id)) { pushErrors.push(`Proyecto "${p.name}" tiene un id inválido`); continue; }
         const gf = groupFieldOf(p);
         const { error } = await client.rpc('li_upsert_project', {
           p_code: workspaceCode, p_id: p.id, p_name: p.name, p_icon: p.icon || null,
           p_fixed_name: p.fixedName || null, p_fields: p.fields || [], p_group_field: gf ? gf.key : null,
           p_sort_order: p.sortOrder || 0, p_deleted: !!p.deleted, p_updated_at: p.updatedAt
         });
-        if(error) throw error;
+        if(error) { pushErrors.push(`Proyecto "${p.name}": ${error.message}`); continue; }
         dirtyProjectIds.delete(id);
       }
       for(const id of [...dirtyItemIds]) {
         const it = items.find(x => x.id === id);
         if(!it) { dirtyItemIds.delete(id); continue; }
+        if(!isValidUUID(it.id) || !isValidUUID(it.projectId)) { pushErrors.push(`Artículo "${it.data?.codigo || it.id}" tiene un id inválido`); continue; }
         const extras = itemSyncExtras(it);
         const { error } = await client.rpc('li_upsert_item', {
           p_code: workspaceCode, p_id: it.id, p_project_id: it.projectId, p_item_code: it.data?.codigo || null,
           p_data: it.data || {}, p_location: extras.location, p_gps: extras.gps, p_notes: it.notes || null,
           p_history: it.history || [], p_deleted: !!it.deleted, p_updated_at: it.updatedAt
         });
-        if(error) throw error;
+        if(error) { pushErrors.push(`Artículo "${it.data?.codigo || it.id}": ${error.message}`); continue; }
         dirtyItemIds.delete(id);
       }
       persistDirty();
@@ -2288,7 +2334,14 @@
       syncBusy = false;
       renderSyncTab();
       render();
-      if(manual) showToast('✓ Sincronizado');
+
+      if(pushErrors.length) {
+        const detail = pushErrors.join('; ');
+        setSyncStatus('Sincronizado con errores: ' + detail, 'err');
+        if(manual) showToast('⚠️ Sincronizado, pero hubo errores: ' + detail, 4000);
+      } else if(manual) {
+        showToast('✓ Sincronizado');
+      }
     } catch(err) {
       console.error(err);
       syncBusy = false;
