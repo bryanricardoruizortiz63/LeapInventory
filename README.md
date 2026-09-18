@@ -18,21 +18,26 @@ IndexedDB, con sincronización opcional vía Supabase.
 
 ## Conceptos
 
-- **Proyecto**: una hoja de inventario independiente (ej. "Chromebooks",
-  "Herramientas", "Equipos de oficina"). Cada proyecto define sus propios
-  campos.
+- **Proyecto**: un inventario independiente (ej. "Escuela Norte", "Bodega
+  central"). Puedes tener varios a la vez desde **⚙︎ Ajustes → Proyectos**;
+  solo se muestran/exportan los artículos del proyecto activo, y su nombre
+  se usa como nombre del archivo al exportar a Excel.
+- **Artículo**: una hoja de inventario independiente dentro del proyecto
+  activo (ej. "Chromebooks", "Herramientas", "Armario"). Cada artículo
+  define sus propios campos.
 - **Campos**: texto, número, texto largo, fecha, lista de opciones, foto o
   ubicación GPS. Un campo puede marcarse como:
   - **Escanear**: se llena automáticamente durante el flujo de escaneo rápido
     (cámara o lector Bluetooth).
-  - **Obligatorio**: no se puede guardar el artículo sin llenarlo.
+  - **Obligatorio**: no se puede guardar el artículo escaneado sin llenarlo.
   - **Usar para filtrar/agrupar** (solo campos de lista): agrega una barra de
-    filtros arriba de la lista y divide el Excel exportado en una hoja por
-    cada opción (ej. una hoja por ubicación).
+    filtros arriba de la lista. Al exportar a Excel, los artículos que
+    comparten el mismo campo de agrupación (ej. varios tipos de equipo con
+    un campo "Ubicación" en común) se combinan en una hoja por cada valor.
 
 ## Escaneo
 
-Dentro de un proyecto, toca **📱 Escanear nuevo**:
+Dentro de un artículo, toca **📱 Escanear nuevo**:
 - **📷 Cámara**: usa la cámara del teléfono para leer códigos de barras/QR
   (no requiere hardware adicional).
 - **Lector Bluetooth**: el campo de texto del banner recibe el código
@@ -40,22 +45,25 @@ Dentro de un proyecto, toca **📱 Escanear nuevo**:
   teclado).
 - **⌨️ Escribir**: entrada manual si no puedes escanear.
 
-Tras completar los campos marcados como "Escanear", el artículo se guarda
-solo y aparece un aviso con botones para continuar, cambiar de proyecto,
-editar o borrar.
+Tras completar los campos marcados como "Escanear", el artículo escaneado se
+guarda solo y el escaneo continúa de inmediato; aparece un aviso rápido con
+opciones para editar o borrar ese último artículo.
 
 ## Fotos, GPS e historial
 
-En el formulario de cada artículo puedes adjuntar una foto (se comprime antes
-de guardarse) y capturar la ubicación GPS actual. Cada creación/edición queda
-registrada en el **Historial** del artículo (fecha y qué cambió).
+En el formulario de cada artículo escaneado puedes adjuntar una foto (se
+comprime antes de guardarse) y capturar la ubicación GPS actual. Cada
+creación/edición queda registrada en el **Historial** (fecha y qué cambió).
 
 ## Exportar e importar
 
-Desde **⚙︎ Ajustes → Exportar**:
-- **Excel**: una hoja por proyecto (o por cada opción del campo de
-  agrupación, si tiene uno) más una hoja de **RESUMEN**.
-- **CSV**: todos los proyectos seleccionados en un solo archivo.
+Desde **⚙︎ Ajustes → Exportar** (siempre del proyecto activo):
+- **Excel**: se llama como el proyecto activo. Si dos o más artículos
+  seleccionados comparten el mismo campo de agrupación, sus hojas se
+  combinan en una por cada valor de ese campo (ej. una por ubicación, con
+  todos los tipos de artículo mezclados ahí); el resto mantiene una hoja
+  propia. Incluye una hoja de **RESUMEN**.
+- **CSV**: todos los artículos seleccionados en un solo archivo.
 - **Respaldo JSON**: copia completa de tus datos (proyectos, artículos y
   fotos) para guardar o transferir a otro dispositivo. Se restaura desde
   **⚙︎ Ajustes → Datos → Restaurar respaldo**.
@@ -68,5 +76,7 @@ Ver [SYNC.md](./SYNC.md).
 
 Si ya usabas la versión escolar (grupos + salones), tus datos se migran
 automáticamente la primera vez que abres esta versión: cada "grupo" se
-convierte en un "proyecto" y "salón" se convierte en un campo de tipo lista
-marcado como agrupador.
+convierte en un "artículo" y "salón" se convierte en un campo de tipo lista
+marcado como agrupador. Si venías de una versión sin proyectos, todos tus
+artículos existentes se colocan dentro de un proyecto nuevo llamado
+"Mi inventario".
