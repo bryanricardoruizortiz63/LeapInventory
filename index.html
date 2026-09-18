@@ -947,7 +947,13 @@
 
   function uuid() {
     if(crypto.randomUUID) return crypto.randomUUID();
-    return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    // Respaldo compatible con el tipo "uuid" de Postgres (RFC 4122 v4) para
+    // navegadores/contextos donde crypto.randomUUID no está disponible.
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
   }
 
   function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -2167,6 +2173,14 @@
     return s;
   }
 
+  // Acepta el código tal como lo tipee el usuario (con/sin guiones, minúsculas,
+  // espacios) y lo normaliza al mismo formato "XXX-XXX-XXX" que genera la app,
+  // para que un pequeño error de formato no rompa la conexión entre dispositivos.
+  function normalizeWorkspaceCode(raw) {
+    const clean = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return clean.replace(/(.{3})(?=.)/g, '$1-');
+  }
+
   function renderSyncTab() {
     const input = document.getElementById('input-workspace-code');
     if(input && document.activeElement !== input) input.value = workspaceCode || '';
@@ -2278,13 +2292,14 @@
     } catch(err) {
       console.error(err);
       syncBusy = false;
-      setSyncStatus('Error de sincronización', 'err');
-      if(manual) showToast('❌ Error al sincronizar');
+      const detail = err?.message || err?.error_description || err?.hint || (typeof err === 'string' ? err : '');
+      setSyncStatus('Error de sincronización' + (detail ? ': ' + detail : ''), 'err');
+      if(manual) showToast('❌ Error al sincronizar' + (detail ? ': ' + detail : ''), 3500);
     }
   }
 
   async function saveWorkspaceCode() {
-    const raw = document.getElementById('input-workspace-code').value.trim().toUpperCase();
+    const raw = normalizeWorkspaceCode(document.getElementById('input-workspace-code').value);
     if(!raw) { showToast('Escribe o genera un código'); return; }
     workspaceCode = raw;
     await idbPut('meta', { key: 'workspaceCode', value: workspaceCode });
