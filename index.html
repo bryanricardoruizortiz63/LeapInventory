@@ -697,6 +697,8 @@
   <button id="btn-settings" title="Ajustes">⚙︎</button>
 </header>
 
+<div id="proyecto-indicator" style="padding: 0 16px 8px; font-size: 13px; color: var(--muted); cursor: pointer;"></div>
+
 <div class="preset-bar" id="preset-bar"></div>
 
 <div class="preset-bar" id="group-bar"></div>
@@ -787,18 +789,28 @@
   </div>
   <div class="sheet-body">
     <div class="tabs">
-      <button class="tab active" data-tab="groups-tab">Proyectos</button>
+      <button class="tab active" data-tab="proyectos-tab">Proyectos</button>
+      <button class="tab" data-tab="groups-tab">Artículos</button>
       <button class="tab" data-tab="sync-tab">Sincronización</button>
       <button class="tab" data-tab="export-tab">Exportar</button>
       <button class="tab" data-tab="data-tab">Datos</button>
     </div>
 
-    <!-- PROJECTS TAB -->
-    <div id="groups-tab" class="tab-content active">
-      <div class="info-box">Cada <b>proyecto</b> es una hoja de inventario independiente (ej. "Equipos de oficina", "Herramientas", "Chromebooks"). Cada uno tiene sus propios campos personalizados.</div>
+    <!-- PROYECTOS TAB -->
+    <div id="proyectos-tab" class="tab-content active">
+      <div class="info-box">Un <b>proyecto</b> es un inventario independiente (ej. "Escuela Norte", "Bodega central"). Puedes tener varios a la vez; cada uno tiene sus propios artículos y datos. Solo se exportan/muestran los artículos del proyecto activo.</div>
+      <div id="proyectos-list"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="btn-new-proyecto">➕ Nuevo proyecto</button>
+      </div>
+    </div>
+
+    <!-- ARTÍCULOS TAB -->
+    <div id="groups-tab" class="tab-content">
+      <div class="info-box">Cada <b>artículo</b> es una hoja de inventario independiente (ej. "Armario", "Chromecart", "Chromebooks") dentro del proyecto activo. Cada uno tiene sus propios campos personalizados.</div>
       <div id="groups-list"></div>
       <div class="btn-row">
-        <button class="btn primary" id="btn-new-group">➕ Nuevo proyecto</button>
+        <button class="btn primary" id="btn-new-group">➕ Nuevo artículo</button>
       </div>
     </div>
 
@@ -818,11 +830,20 @@
         <button class="btn secondary" id="btn-sync-manual">☁︎ Sincronizar ahora</button>
         <button class="btn danger" id="btn-disconnect-sync">Desconectar</button>
       </div>
+      <div class="field" style="margin-top:16px;">
+        <label>Nombre de este dispositivo</label>
+        <input type="text" id="input-device-name" placeholder="Ej: iPhone de Bryan">
+        <div class="field-hint">Así lo identificas en la lista de dispositivos conectados.</div>
+      </div>
+      <div id="devices-section" class="hidden">
+        <h3>Dispositivos conectados</h3>
+        <div id="devices-list"></div>
+      </div>
     </div>
 
     <!-- EXPORT TAB -->
     <div id="export-tab" class="tab-content">
-      <div class="info-box">Elige qué proyectos incluir. En Excel, cada proyecto se divide en varias hojas automáticamente si tiene un campo marcado como "agrupar" (por ejemplo, Ubicación).</div>
+      <div class="info-box">Elige qué artículos del proyecto activo incluir. En Excel, artículos que comparten el mismo campo de agrupación (ej. Ubicación) se combinan en una hoja por cada valor.</div>
       <div id="export-project-list"></div>
       <div class="btn-row">
         <button class="btn primary" id="btn-export-excel">📊 Excel</button>
@@ -842,10 +863,10 @@
       <h3>Zona de peligro</h3>
       <div class="warning-box">Estas acciones no se pueden deshacer.</div>
       <div class="btn-row">
-        <button class="btn danger" id="btn-empty-project">🗑️ Vaciar proyecto actual</button>
+        <button class="btn danger" id="btn-empty-project">🗑️ Vaciar artículo actual</button>
       </div>
       <div class="btn-row">
-        <button class="btn danger" id="btn-delete-all">🗑️ Borrar TODOS los artículos</button>
+        <button class="btn danger" id="btn-delete-all">🗑️ Borrar TODOS los artículos escaneados</button>
       </div>
     </div>
   </div>
@@ -854,7 +875,7 @@
 <!-- PRESET EDITOR SHEET -->
 <div class="sheet" id="preset-editor-sheet">
   <div class="sheet-header">
-    <h2 id="preset-editor-title">Editar proyecto</h2>
+    <h2 id="preset-editor-title">Editar artículo</h2>
     <button id="btn-close-preset-editor">✕</button>
   </div>
   <div class="sheet-body" id="preset-editor-body"></div>
@@ -863,12 +884,12 @@
 <script>
   // ===== DATABASE =====
   const DB_NAME = 'InventarioEscolar';
-  const DB_VERSION = 13;
+  const DB_VERSION = 14;
   const SUPABASE_URL = 'https://jnxyneruvvbmuydbxfmq.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpueHluZXJ1dnZibXV5ZGJ4Zm1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3NDI2MjIsImV4cCI6MjEwNTMxODYyMn0.yNhUvjacKXukp9tWaG4EjcOV2ve4zXoZj78VhMvj4lw';
 
-  let db, items = [], projects = [];
-  let activeProjectId = null, activeGroupValue = null;
+  let db, items = [], projects = [], proyectos = [];
+  let activeProjectId = null, activeGroupValue = null, activeProyectoId = null;
   let editingId = null;
   let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
   let workspaceCode = '', lastSyncAt = null, syncBusy = false;
@@ -876,6 +897,7 @@
   let syncDebounceTimer = null;
   let html5QrInstance = null;
   let cameraModeActive = false;
+  let deviceId = '', deviceName = '', devices = [];
 
   const FIELD_TYPES = [
     { value: 'text', label: 'Texto' },
@@ -898,6 +920,7 @@
         if(!d.objectStoreNames.contains('salones')) d.createObjectStore('salones', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('proyectos')) d.createObjectStore('proyectos', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('attachments')) d.createObjectStore('attachments', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'key' });
       };
@@ -1012,8 +1035,14 @@
   }
 
   // ===== GENERIC DATA HELPERS =====
+  function activeProyectosList() {
+    return proyectos.filter(p => !p.deleted).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }
+  function getCurrentProyecto() {
+    return proyectos.find(p => p.id === activeProyectoId && !p.deleted) || activeProyectosList()[0];
+  }
   function activeProjectsList() {
-    return projects.filter(p => !p.deleted).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    return projects.filter(p => !p.deleted && p.proyectoId === activeProyectoId).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }
   function getCurrentProject() {
     return projects.find(p => p.id === activeProjectId && !p.deleted) || activeProjectsList()[0];
@@ -1026,6 +1055,10 @@
   }
   function safeSheetName(name) {
     return String(name).replace(/[\\/*?:\[\]]/g, ' ').trim().slice(0, 31) || 'Hoja';
+  }
+  function safeFileName(name) {
+    if(name == null) return 'BScanInventory';
+    return String(name).replace(/[\\/*?:"<>|]/g, ' ').trim().replace(/\s+/g, '_') || 'BScanInventory';
   }
 
   function markProjectDirty(id) {
@@ -1059,6 +1092,10 @@
     dirtyProjectIds = new Set(meta.dirty ? meta.dirty.projects : []);
     dirtyItemIds = new Set(meta.dirty ? meta.dirty.items : []);
 
+    deviceId = meta.deviceId ? meta.deviceId.value : '';
+    if(!deviceId) { deviceId = uuid(); await idbPut('meta', { key: 'deviceId', value: deviceId }); }
+    deviceName = meta.deviceName ? meta.deviceName.value : '';
+
     if(projects.length === 0) {
       const legacyPresets = await idbGetAll('presets');
       if(legacyPresets.length > 0) {
@@ -1084,6 +1121,7 @@
       await idbPut('projects', example);
     }
 
+    await ensureProyectos();
     await healInvalidIds();
 
     activeProjectId = activeProjectsList()[0]?.id || null;
@@ -1165,7 +1203,7 @@
     });
     const addBtn = document.createElement('button');
     addBtn.className = 'preset-btn add';
-    addBtn.textContent = '➕ Proyecto';
+    addBtn.textContent = '➕ Artículo';
     addBtn.onclick = newPreset;
     bar.appendChild(addBtn);
   }
@@ -1261,10 +1299,18 @@
   }
 
   function render() {
+    renderProyectoIndicator();
     renderPresetBar();
     renderGroupBar();
     updateStats();
     renderList();
+  }
+
+  function renderProyectoIndicator() {
+    const el = document.getElementById('proyecto-indicator');
+    if(!el) return;
+    const proyecto = getCurrentProyecto();
+    el.textContent = proyecto ? `📁 ${proyecto.name} · cambiar` : '';
   }
 
   // ===== SCANNING FLOW =====
@@ -1285,11 +1331,11 @@
 
   function startScanning() {
     const project = getCurrentProject();
-    if(!project) { showToast('Crea un proyecto primero'); return; }
+    if(!project) { showToast('Crea un artículo primero'); return; }
     scanFields = project.fields.filter(f => f.continuous);
 
     if(scanFields.length === 0) {
-      showToast('Este proyecto no tiene campos para escanear. Usa "Agregar manual".');
+      showToast('Este artículo no tiene campos para escanear. Usa "Agregar manual".');
       return;
     }
 
@@ -1735,6 +1781,7 @@
 
   // ===== PROJECTS MANAGEMENT =====
   function openSettingsSheet() {
+    renderProyectosTab();
     renderGroupsList();
     renderSyncTab();
     renderExportTab();
@@ -1762,9 +1809,134 @@
     });
   }
 
+  // ===== PROYECTOS (contenedores de nivel superior, locales al dispositivo) =====
+  async function ensureProyectos() {
+    proyectos = await idbGetAll('proyectos');
+    if(proyectos.length === 0) {
+      const def = {
+        id: uuid(), name: 'Mi inventario', sortOrder: 0, deleted: false,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      };
+      proyectos = [def];
+      await idbPut('proyectos', def);
+    }
+    const validIds = new Set(activeProyectosList().map(p => p.id));
+    const fallbackId = activeProyectosList()[0]?.id || null;
+    for(const p of projects) {
+      if(!validIds.has(p.proyectoId)) {
+        p.proyectoId = fallbackId;
+        await idbPut('projects', p);
+      }
+    }
+    if(!activeProyectoId || !validIds.has(activeProyectoId)) {
+      activeProyectoId = fallbackId;
+    }
+  }
+
+  function switchProyecto(id) {
+    if(id === activeProyectoId) return;
+    activeProyectoId = id;
+    activeProjectId = activeProjectsList()[0]?.id || null;
+    const gf = groupFieldOf(getCurrentProject());
+    activeGroupValue = gf ? (gf.options || [])[0] || null : null;
+    renderProyectosTab();
+    renderGroupsList();
+    renderExportTab();
+    render();
+  }
+
+  function newProyecto() {
+    const name = prompt('Nombre del nuevo proyecto:');
+    if(!name || !name.trim()) return;
+    const newP = {
+      id: uuid(), name: name.trim(), sortOrder: activeProyectosList().length, deleted: false,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    proyectos.push(newP);
+    idbPut('proyectos', newP).then(() => {
+      switchProyecto(newP.id);
+      showToast(`✓ Proyecto "${newP.name}" creado`);
+    });
+  }
+
+  function renameProyecto(id) {
+    const p = proyectos.find(x => x.id === id);
+    if(!p) return;
+    const name = prompt('Nuevo nombre del proyecto:', p.name);
+    if(!name || !name.trim()) return;
+    p.name = name.trim();
+    p.updatedAt = new Date().toISOString();
+    idbPut('proyectos', p).then(() => {
+      renderProyectosTab();
+      render();
+      showToast('✓ Proyecto renombrado');
+    });
+  }
+
+  function deleteProyecto(id) {
+    if(activeProyectosList().length <= 1) { showToast('Debe existir al menos un proyecto'); return; }
+    const p = proyectos.find(x => x.id === id);
+    if(!p) return;
+    const affectedProjects = projects.filter(pr => pr.proyectoId === id && !pr.deleted);
+    if(!confirm(`¿Eliminar el proyecto "${p.name}"?\n\n⚠️ Se eliminarán sus ${affectedProjects.length} artículo(s) y todo lo escaneado en ellos.`)) return;
+
+    const now = new Date().toISOString();
+    p.deleted = true;
+    p.updatedAt = now;
+    const affectedItems = [];
+    affectedProjects.forEach(pr => {
+      pr.deleted = true;
+      pr.updatedAt = now;
+      affectedItems.push(...itemsOfProject(pr.id));
+    });
+    affectedItems.forEach(it => { it.deleted = true; it.updatedAt = now; });
+
+    Promise.all([
+      idbPut('proyectos', p),
+      ...affectedProjects.map(pr => idbPut('projects', pr)),
+      ...affectedItems.map(it => idbPut('items', it))
+    ]).then(() => {
+      affectedProjects.forEach(pr => markProjectDirty(pr.id));
+      affectedItems.forEach(it => markItemDirty(it.id));
+      if(activeProyectoId === id) switchProyecto(activeProyectosList()[0]?.id || null);
+      renderProyectosTab();
+      render();
+      showToast('🗑 Proyecto eliminado');
+    });
+  }
+
+  function renderProyectosTab() {
+    const list = document.getElementById('proyectos-list');
+    if(!list) return;
+    list.innerHTML = '';
+    activeProyectosList().forEach(p => {
+      const count = projects.filter(pr => pr.proyectoId === p.id && !pr.deleted).length;
+      const isActive = p.id === activeProyectoId;
+      const div = document.createElement('div');
+      div.className = 'preset-item';
+      if(isActive) div.style.cssText = 'border-color: var(--primary); border-width: 2px;';
+      div.innerHTML = `
+        <div class="info">
+          <div class="name">${isActive ? '✓ ' : ''}${escapeHTML(p.name)}</div>
+          <div class="desc">${count} artículo(s)${isActive ? ' · activo' : ''}</div>
+        </div>
+        <div class="actions">
+          ${isActive ? '' : `<button class="btn secondary small" id="switch-proyecto-${p.id}">Activar</button>`}
+          <button class="btn secondary small" id="rename-proyecto-${p.id}">✏️</button>
+          <button class="btn danger small" id="delete-proyecto-${p.id}">🗑</button>
+        </div>
+      `;
+      list.appendChild(div);
+      document.getElementById(`switch-proyecto-${p.id}`)?.addEventListener('click', () => switchProyecto(p.id));
+      document.getElementById(`rename-proyecto-${p.id}`).onclick = () => renameProyecto(p.id);
+      document.getElementById(`delete-proyecto-${p.id}`).onclick = () => deleteProyecto(p.id);
+    });
+  }
+
   function newPreset() {
+    if(!activeProyectoId) { showToast('Crea un proyecto primero'); return; }
     const newProject = {
-      id: uuid(), name: 'Nuevo proyecto', icon: '📦', fixedName: '',
+      id: uuid(), name: 'Nuevo artículo', icon: '📦', fixedName: '', proyectoId: activeProyectoId,
       sortOrder: activeProjectsList().length, deleted: false,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       fields: [
@@ -1786,11 +1958,11 @@
     document.getElementById('preset-editor-title').textContent = `Editar: ${preset.icon} ${preset.name}`;
 
     let html = `
-      <div class="field required"><label>Nombre del proyecto</label><input type="text" id="preset-name" value="${escapeHTML(preset.name)}"></div>
+      <div class="field required"><label>Nombre del artículo</label><input type="text" id="preset-name" value="${escapeHTML(preset.name)}"></div>
       <div class="field required"><label>Emoji</label><input type="text" id="preset-icon" value="${escapeHTML(preset.icon)}" style="font-size: 24px; text-align: center;"></div>
-      <div class="field"><label>Nombre fijo en artículos (opcional)</label><input type="text" id="preset-fixed-name" value="${escapeHTML(preset.fixedName || '')}"><div class="field-hint">Se pre-llena automáticamente en cada artículo, ej. "Chromebook"</div></div>
+      <div class="field"><label>Nombre fijo en artículos escaneados (opcional)</label><input type="text" id="preset-fixed-name" value="${escapeHTML(preset.fixedName || '')}"><div class="field-hint">Se pre-llena automáticamente en cada artículo escaneado, ej. "Chromebook"</div></div>
 
-      <h3 style="margin-top: 24px; margin-bottom: 12px;">Campos del proyecto</h3>
+      <h3 style="margin-top: 24px; margin-bottom: 12px;">Campos del artículo</h3>
       <div id="preset-fields-list"></div>
 
       <div class="btn-row" style="margin-bottom: 12px;">
@@ -1800,7 +1972,7 @@
         <button class="btn primary" id="btn-save-preset">Guardar cambios</button>
         <button class="btn secondary" id="btn-cancel-preset">Cancelar</button>
       </div>
-      <div class="btn-row"><button class="btn danger" id="btn-delete-preset">🗑 Eliminar proyecto</button></div>
+      <div class="btn-row"><button class="btn danger" id="btn-delete-preset">🗑 Eliminar artículo</button></div>
     `;
     document.getElementById('preset-editor-body').innerHTML = html;
 
@@ -1929,14 +2101,14 @@
     idbPut('projects', preset).then(() => {
       markProjectDirty(preset.id);
       closeSheet('preset-editor-sheet');
-      showToast('✓ Proyecto actualizado');
+      showToast('✓ Artículo actualizado');
       render();
       openSettingsSheet();
     });
   }
 
   function deletePreset(presetId) {
-    if(!confirm('¿Eliminar este proyecto?\n\n⚠️ Se eliminarán todos sus artículos')) return;
+    if(!confirm('¿Eliminar este artículo?\n\n⚠️ Se eliminarán todos sus artículos escaneados')) return;
     const preset = projects.find(p => p.id === presetId);
     if(!preset) return;
     preset.deleted = true;
@@ -1952,7 +2124,7 @@
       markProjectDirty(presetId);
       affectedItems.forEach(it => markItemDirty(it.id));
       closeSheet('preset-editor-sheet');
-      showToast('🗑 Proyecto eliminado');
+      showToast('🗑 Artículo eliminado');
       render();
       openSettingsSheet();
     });
@@ -2014,7 +2186,7 @@
       await ensureXLSX();
       const wb = XLSX.utils.book_new();
       const selected = selectedExportProjects();
-      if(!selected.length) { showToast('Selecciona al menos un proyecto'); return; }
+      if(!selected.length) { showToast('Selecciona al menos un artículo'); return; }
 
       const buildRow = (it, project, displayFields) => [
         it.data.codigo || '',
@@ -2057,7 +2229,7 @@
           });
         });
 
-        const headers = ['Proyecto', 'Código', ...unionLabels, 'Creado', 'Actualizado'];
+        const headers = ['Artículo', 'Código', ...unionLabels, 'Creado', 'Actualizado'];
 
         [...optionsSet].forEach(opt => {
           const rows = [];
@@ -2106,7 +2278,7 @@
         }
       });
 
-      const resumenData = [['RESUMEN GENERAL'], [], ['Proyecto', 'Cantidad total']];
+      const resumenData = [['RESUMEN GENERAL'], [], ['Artículo', 'Cantidad total']];
       let grandTotal = 0;
       selected.forEach(project => {
         const list = itemsOfProject(project.id);
@@ -2120,7 +2292,8 @@
       wsResumen['!cols'] = [{ wch: 30 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, wsResumen, 'RESUMEN');
 
-      XLSX.writeFile(wb, `BScanInventory_${todayISO()}.xlsx`);
+      const proyectoName = getCurrentProyecto()?.name;
+      XLSX.writeFile(wb, `${safeFileName(proyectoName)}_${todayISO()}.xlsx`);
       showToast('✓ Exportado a Excel');
     } catch(err) {
       console.error(err);
@@ -2136,7 +2309,7 @@
 
   function exportToCSV() {
     const selected = selectedExportProjects();
-    if(!selected.length) { showToast('Selecciona al menos un proyecto'); return; }
+    if(!selected.length) { showToast('Selecciona al menos un artículo'); return; }
 
     const labelOrder = [];
     const seen = new Set();
@@ -2144,7 +2317,7 @@
       if(!seen.has(f.label)) { seen.add(f.label); labelOrder.push(f.label); }
     }));
 
-    const headers = ['Proyecto', ...labelOrder, 'Creado', 'Actualizado'];
+    const headers = ['Artículo', ...labelOrder, 'Creado', 'Actualizado'];
     const rows = [headers];
 
     selected.forEach(project => {
@@ -2172,7 +2345,7 @@
 
   async function exportToJSON() {
     const attachments = await idbGetAll('attachments');
-    const backup = { version: 1, exportedAt: new Date().toISOString(), projects, items, attachments };
+    const backup = { version: 1, exportedAt: new Date().toISOString(), proyectos, projects, items, attachments };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2190,6 +2363,7 @@
         showToast('❌ Archivo de respaldo inválido');
         return;
       }
+      await Promise.all((backup.proyectos || []).map(p => idbPut('proyectos', p)));
       await Promise.all(backup.projects.map(p => idbPut('projects', p)));
       await Promise.all(backup.items.map(it => idbPut('items', it)));
       await Promise.all((backup.attachments || []).map(a => idbPut('attachments', a)));
@@ -2199,6 +2373,7 @@
 
       projects = await idbGetAll('projects');
       items = await idbGetAll('items');
+      await ensureProyectos();
       activeProjectId = activeProjectsList()[0]?.id || null;
       render();
       openSettingsSheet();
@@ -2214,13 +2389,13 @@
     const project = getCurrentProject();
     if(!project) return;
     const list = itemsOfProject(project.id);
-    if(!list.length) { showToast('Este proyecto ya está vacío'); return; }
+    if(!list.length) { showToast('Este artículo ya está vacío'); return; }
     if(!confirm(`⚠️ Esto borrará ${list.length} artículos de "${project.name}". No se puede deshacer.`)) return;
     const now = new Date().toISOString();
     list.forEach(it => { it.deleted = true; it.updatedAt = now; });
     Promise.all(list.map(it => idbPut('items', it))).then(() => {
       list.forEach(it => markItemDirty(it.id));
-      showToast('✓ Proyecto vaciado');
+      showToast('✓ Artículo vaciado');
       render();
     });
   }
@@ -2228,7 +2403,7 @@
   function deleteAllItems() {
     const visible = items.filter(it => !it.deleted);
     if(visible.length === 0) { showToast('No hay artículos para borrar'); return; }
-    if(!confirm(`⚠️ ¿Está seguro?\n\nEsto borrará ${visible.length} artículos de TODOS los proyectos.\n\nEsta acción NO SE PUEDE DESHACER.`)) return;
+    if(!confirm(`⚠️ ¿Está seguro?\n\nEsto borrará ${visible.length} artículos escaneados de TODOS tus artículos y proyectos.\n\nEsta acción NO SE PUEDE DESHACER.`)) return;
     const now = new Date().toISOString();
     visible.forEach(it => { it.deleted = true; it.updatedAt = now; });
     Promise.all(visible.map(it => idbPut('items', it))).then(() => {
@@ -2283,6 +2458,8 @@
   function renderSyncTab() {
     const input = document.getElementById('input-workspace-code');
     if(input && document.activeElement !== input) input.value = workspaceCode || '';
+    const nameInput = document.getElementById('input-device-name');
+    if(nameInput && document.activeElement !== nameInput) nameInput.value = deviceName || '';
     if(!workspaceCode) {
       setSyncStatus('Sin sincronización configurada');
     } else if(syncBusy) {
@@ -2292,6 +2469,42 @@
     } else {
       setSyncStatus('Código guardado. Pendiente de sincronizar.', 'busy');
     }
+    renderDevicesList();
+  }
+
+  function saveDeviceName() {
+    const val = document.getElementById('input-device-name').value.trim();
+    if(val === deviceName) return;
+    deviceName = val;
+    idbPut('meta', { key: 'deviceName', value: deviceName });
+    if(workspaceCode) scheduleAutoSync();
+  }
+
+  function renderDevicesList() {
+    const section = document.getElementById('devices-section');
+    const list = document.getElementById('devices-list');
+    if(!section || !list) return;
+    if(!workspaceCode || devices.length === 0) {
+      section.classList.add('hidden');
+      return;
+    }
+    section.classList.remove('hidden');
+    list.innerHTML = '';
+    const now = Date.now();
+    devices.forEach(d => {
+      const lastSeenMs = new Date(d.last_seen_at).getTime();
+      const isOnline = (now - lastSeenMs) < 90000;
+      const isThisDevice = d.device_id === deviceId;
+      const div = document.createElement('div');
+      div.className = 'preset-item';
+      div.innerHTML = `
+        <div class="info">
+          <div class="name">${isOnline ? '🟢' : '⚪'} ${escapeHTML(d.name || 'Sin nombre')}${isThisDevice ? ' (este dispositivo)' : ''}</div>
+          <div class="desc">${isOnline ? 'En línea' : 'Última vez: ' + new Date(d.last_seen_at).toLocaleString()}</div>
+        </div>
+      `;
+      list.appendChild(div);
+    });
   }
 
   function mapRemoteProject(rp) {
@@ -2338,14 +2551,14 @@
       for(const id of [...dirtyProjectIds]) {
         const p = projects.find(x => x.id === id);
         if(!p) { dirtyProjectIds.delete(id); continue; }
-        if(!isValidUUID(p.id)) { pushErrors.push(`Proyecto "${p.name}" tiene un id inválido`); continue; }
+        if(!isValidUUID(p.id)) { pushErrors.push(`Artículo "${p.name}" tiene un id inválido`); continue; }
         const gf = groupFieldOf(p);
         const { error } = await client.rpc('li_upsert_project', {
           p_code: workspaceCode, p_id: p.id, p_name: p.name, p_icon: p.icon || null,
           p_fixed_name: p.fixedName || null, p_fields: p.fields || [], p_group_field: gf ? gf.key : null,
           p_sort_order: p.sortOrder || 0, p_deleted: !!p.deleted, p_updated_at: p.updatedAt
         });
-        if(error) { pushErrors.push(`Proyecto "${p.name}": ${error.message}`); continue; }
+        if(error) { pushErrors.push(`Artículo "${p.name}": ${error.message}`); continue; }
         dirtyProjectIds.delete(id);
       }
       for(const id of [...dirtyItemIds]) {
@@ -2371,6 +2584,9 @@
       for(const rp of (remoteProjects || [])) {
         const mapped = mapRemoteProject(rp);
         const local = projects.find(p => p.id === mapped.id);
+        // "proyectoId" es una agrupación local (no viaja en la nube); se conserva
+        // la del dispositivo, o se asigna al proyecto activo si es nuevo aquí.
+        mapped.proyectoId = local ? local.proyectoId : activeProyectoId;
         if(!local || new Date(mapped.updatedAt) > new Date(local.updatedAt || 0)) {
           await idbPut('projects', mapped);
         }
@@ -2381,6 +2597,15 @@
         if(!local || new Date(mapped.updatedAt) > new Date(local.updatedAt || 0)) {
           await idbPut('items', mapped);
         }
+      }
+
+      // Aviso de presencia: no debe bloquear el resto del sync si falla.
+      try {
+        await client.rpc('li_upsert_device', { p_code: workspaceCode, p_device_id: deviceId, p_name: deviceName || null });
+        const { data: remoteDevices } = await client.rpc('li_get_devices', { p_code: workspaceCode });
+        devices = remoteDevices || [];
+      } catch(devErr) {
+        console.error(devErr);
       }
 
       projects = await idbGetAll('projects');
@@ -2428,6 +2653,7 @@
     workspaceCode = '';
     await idbPut('meta', { key: 'workspaceCode', value: '' });
     document.getElementById('input-workspace-code').value = '';
+    devices = [];
     renderSyncTab();
     showToast('Sincronización desconectada');
   }
@@ -2445,6 +2671,7 @@
   document.getElementById('btn-scan').onclick = startScanning;
   document.getElementById('btn-new-item').onclick = () => openItemSheet(null);
   document.getElementById('btn-settings').onclick = openSettingsSheet;
+  document.getElementById('proyecto-indicator').onclick = openSettingsSheet;
   document.getElementById('btn-delete-all').onclick = deleteAllItems;
   document.getElementById('btn-empty-project').onclick = emptyCurrentProject;
   document.getElementById('btn-sync-now').onclick = () => syncNow(true);
@@ -2452,7 +2679,9 @@
   document.getElementById('btn-generate-code').onclick = () => { document.getElementById('input-workspace-code').value = genWorkspaceCode(); };
   document.getElementById('btn-save-code').onclick = saveWorkspaceCode;
   document.getElementById('btn-disconnect-sync').onclick = disconnectSync;
+  document.getElementById('input-device-name').addEventListener('blur', saveDeviceName);
   document.getElementById('btn-new-group').onclick = newPreset;
+  document.getElementById('btn-new-proyecto').onclick = newProyecto;
   document.getElementById('btn-open-camera').addEventListener('click', openCamera);
   document.getElementById('btn-close-camera').addEventListener('click', closeCameraByUser);
 
