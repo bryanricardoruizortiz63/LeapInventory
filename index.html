@@ -2403,6 +2403,7 @@
   async function exportToExcel() {
     try {
       await ensureXLSX();
+      if(activeProyectoId) await applyUbicacionesToProyecto(activeProyectoId);
       const wb = XLSX.utils.book_new();
       const selected = selectedExportProjects();
       if(!selected.length) { showToast('Selecciona al menos un artículo'); return; }
@@ -2414,31 +2415,27 @@
         it.updatedAt ? new Date(it.updatedAt).toLocaleString() : ''
       ];
 
-      // Cuando varios proyectos comparten el mismo campo agrupador (ej. varios
-      // tipos de artículo con un campo "Salón" con las mismas opciones), las
-      // hojas se dividen por ese valor en vez de por proyecto, mezclando ahí
-      // los artículos de todos esos proyectos. Un proyecto cuyo campo
-      // agrupador no comparte ningún otro (o que no tiene uno) mantiene una
-      // hoja propia, como antes.
+      // Los artículos con campo agrupador (ubicación) dentro de un mismo
+      // proyecto comparten SIEMPRE la misma lista (⚙︎ Ajustes → Ubicaciones),
+      // así que sus hojas se combinan: una hoja por ubicación, mezclando ahí
+      // los artículos de todos esos tipos. Ya no depende de que la etiqueta
+      // del campo coincida texto por texto (un artículo migrado de una
+      // versión anterior podía decir "Salón" y uno nuevo "Ubicación", y antes
+      // eso los separaba). Un artículo sin campo agrupador mantiene su propia
+      // hoja, como antes.
       const UNASSIGNED = '(Sin asignar)';
-      const sharedGroups = new Map();
-      const soloProjects = [];
+      let groupableProjects = selected.filter(p => groupFieldOf(p));
+      const soloProjects = selected.filter(p => !groupFieldOf(p));
+      if(groupableProjects.length === 1) {
+        soloProjects.push(groupableProjects[0]);
+        groupableProjects = [];
+      }
 
-      selected.forEach(project => {
-        const gf = groupFieldOf(project);
-        const label = gf ? gf.label.trim().toLowerCase() : null;
-        if(!label) { soloProjects.push(project); return; }
-        if(!sharedGroups.has(label)) sharedGroups.set(label, []);
-        sharedGroups.get(label).push(project);
-      });
-
-      sharedGroups.forEach((groupProjects) => {
-        if(groupProjects.length === 1) { soloProjects.push(groupProjects[0]); return; }
-
+      if(groupableProjects.length > 1) {
         const optionsSet = new Set();
         const unionLabels = [];
         const seenLabels = new Set();
-        groupProjects.forEach(p => {
+        groupableProjects.forEach(p => {
           const gf = groupFieldOf(p);
           (gf.options || []).forEach(o => optionsSet.add(o));
           itemsOfProject(p.id).forEach(it => optionsSet.add(it.data[gf.key] || UNASSIGNED));
@@ -2452,7 +2449,7 @@
 
         [...optionsSet].forEach(opt => {
           const rows = [];
-          groupProjects.forEach(project => {
+          groupableProjects.forEach(project => {
             const gf = groupFieldOf(project);
             itemsOfProject(project.id)
               .filter(it => (it.data[gf.key] || UNASSIGNED) === opt)
@@ -2473,7 +2470,7 @@
           ws['!cols'] = headers.map(() => ({ wch: 20 }));
           XLSX.utils.book_append_sheet(wb, ws, safeSheetName(opt));
         });
-      });
+      }
 
       soloProjects.forEach(project => {
         const gf = groupFieldOf(project);
