@@ -791,6 +791,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="proyectos-tab">Proyectos</button>
       <button class="tab" data-tab="groups-tab">Artículos</button>
+      <button class="tab" data-tab="ubicaciones-tab">Ubicaciones</button>
       <button class="tab" data-tab="sync-tab">Sincronización</button>
       <button class="tab" data-tab="export-tab">Exportar</button>
       <button class="tab" data-tab="data-tab">Datos</button>
@@ -814,9 +815,23 @@
       </div>
     </div>
 
+    <!-- UBICACIONES TAB -->
+    <div id="ubicaciones-tab" class="tab-content">
+      <div class="info-box">Lista de ubicaciones del proyecto activo (ej. "Salón 1" a "Salón 32"). Se comparte automáticamente entre todos sus artículos: eliges el artículo a escanear arriba y la ubicación en la barra de debajo, sin configurarla en cada artículo por separado.</div>
+      <div id="ubicaciones-list"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="btn-new-ubicacion">➕ Nueva ubicación</button>
+      </div>
+    </div>
+
     <!-- SYNC TAB -->
     <div id="sync-tab" class="tab-content">
-      <div class="info-box">Comparte el mismo inventario entre varios dispositivos. Todos los que usen el <b>mismo código de equipo</b> ven y editan los mismos datos. No requiere cuenta ni contraseña: cualquiera con el código tiene acceso, así que trátalo como un enlace compartido.</div>
+      <div class="info-box">Comparte el mismo inventario entre varios dispositivos. Todos los que usen el <b>mismo código de equipo</b> ven y editan los mismos datos de ese proyecto (todos sus artículos y lo escaneado). No requiere cuenta ni contraseña: cualquiera con el código tiene acceso, así que trátalo como un enlace compartido.</div>
+      <div class="field">
+        <label>Proyecto a sincronizar</label>
+        <select id="select-sync-proyecto"></select>
+        <div class="field-hint">Cada proyecto tiene su propio código; sincronizar uno no toca los demás.</div>
+      </div>
       <div class="field">
         <label>Código de equipo</label>
         <input type="text" id="input-workspace-code" placeholder="Ej: XJ7-QK2-9PL" style="text-transform:uppercase; font-family:'Courier New',monospace; font-weight:700; text-align:center;">
@@ -887,13 +902,14 @@
 <script>
   // ===== DATABASE =====
   const DB_NAME = 'InventarioEscolar';
-  const DB_VERSION = 14;
+  const DB_VERSION = 15;
   const SUPABASE_URL = 'https://jnxyneruvvbmuydbxfmq.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpueHluZXJ1dnZibXV5ZGJ4Zm1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3NDI2MjIsImV4cCI6MjEwNTMxODYyMn0.yNhUvjacKXukp9tWaG4EjcOV2ve4zXoZj78VhMvj4lw';
 
-  let db, items = [], projects = [], proyectos = [];
+  let db, items = [], projects = [], proyectos = [], ubicaciones = [];
   let activeProjectId = null, activeGroupValue = null, activeProyectoId = null;
   let editingId = null;
+  let editingPreset = null;
   let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
   let syncBusy = false;
   let dirtyProjectIds = new Set(), dirtyItemIds = new Set();
@@ -924,6 +940,7 @@
         if(!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('proyectos')) d.createObjectStore('proyectos', { keyPath: 'id' });
+        if(!d.objectStoreNames.contains('ubicaciones')) d.createObjectStore('ubicaciones', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('attachments')) d.createObjectStore('attachments', { keyPath: 'id' });
         if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'key' });
       };
@@ -1123,6 +1140,7 @@
 
     await ensureProyectos(meta.workspaceCode ? meta.workspaceCode.value : '');
     await healInvalidIds();
+    await ensureUbicaciones();
 
     activeProjectId = activeProjectsList()[0]?.id || null;
     const gf = groupFieldOf(getCurrentProject());
@@ -1783,6 +1801,7 @@
   function openSettingsSheet() {
     renderProyectosTab();
     renderGroupsList();
+    renderUbicacionesTab();
     renderSyncTab();
     renderExportTab();
     showSheet('settings-sheet');
@@ -1860,6 +1879,7 @@
     activeGroupValue = gf ? (gf.options || [])[0] || null : null;
     renderProyectosTab();
     renderGroupsList();
+    renderUbicacionesTab();
     renderSyncTab();
     renderExportTab();
     render();
@@ -1955,15 +1975,166 @@
     });
   }
 
+  // ===== UBICACIONES (lista compartida por proyecto, ej. "Salón 1".."Salón 32") =====
+  // En vez de que cada artículo defina su propia lista de opciones para el
+  // campo de ubicación, hay una sola lista por proyecto que se administra
+  // aquí, y se aplica automáticamente al campo agrupador de cada artículo.
+  function ubicacionesOfProyecto(proyectoId) {
+    return ubicaciones.filter(u => !u.deleted && u.proyectoId === proyectoId).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }
+  function activeUbicaciones() {
+    return ubicacionesOfProyecto(activeProyectoId);
+  }
+
+  async function ensureUbicaciones() {
+    ubicaciones = await idbGetAll('ubicaciones');
+    for(const proyecto of activeProyectosList()) {
+      if(ubicacionesOfProyecto(proyecto.id).length > 0) continue;
+      // Migración: si algún artículo de este proyecto ya traía una lista de
+      // opciones en su campo agrupador (de antes de que existiera esta
+      // pantalla), se usa como semilla para no perder esas ubicaciones.
+      const namesSet = new Set();
+      projects.filter(p => p.proyectoId === proyecto.id && !p.deleted).forEach(p => {
+        const gf = groupFieldOf(p);
+        (gf?.options || []).forEach(o => namesSet.add(o));
+      });
+      let order = 0;
+      for(const nombre of namesSet) {
+        const u = {
+          id: uuid(), proyectoId: proyecto.id, nombre, sortOrder: order++, deleted: false,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        };
+        ubicaciones.push(u);
+        await idbPut('ubicaciones', u);
+      }
+    }
+  }
+
+  // Escribe la lista vigente de ubicaciones del proyecto en el campo
+  // agrupador de cada uno de sus artículos, y los marca para sincronizar.
+  async function applyUbicacionesToProyecto(proyectoId) {
+    const names = ubicacionesOfProyecto(proyectoId).map(u => u.nombre);
+    const affected = projects.filter(p => p.proyectoId === proyectoId && !p.deleted);
+    for(const p of affected) {
+      const gf = groupFieldOf(p);
+      if(!gf) continue;
+      if(JSON.stringify(gf.options || []) === JSON.stringify(names)) continue;
+      gf.options = [...names];
+      p.updatedAt = new Date().toISOString();
+      await idbPut('projects', p);
+      reconcileProject(p);
+      markProjectDirty(p.id);
+    }
+  }
+
+  // Al renombrar una ubicación, los artículos escaneados que ya la tenían
+  // asignada se actualizan al nuevo nombre para no perder su ubicación.
+  async function renameUbicacionInItems(proyectoId, oldName, newName) {
+    if(oldName === newName) return;
+    const projectIds = new Set(projects.filter(p => p.proyectoId === proyectoId && !p.deleted).map(p => p.id));
+    const now = new Date().toISOString();
+    for(const it of items) {
+      if(it.deleted || !projectIds.has(it.projectId)) continue;
+      const project = projects.find(p => p.id === it.projectId);
+      const gf = groupFieldOf(project);
+      if(gf && it.data[gf.key] === oldName) {
+        it.data[gf.key] = newName;
+        it.updatedAt = now;
+        await idbPut('items', it);
+        markItemDirty(it.id);
+      }
+    }
+  }
+
+  function newUbicacion() {
+    const proyecto = getCurrentProyecto();
+    if(!proyecto) { showToast('Crea un proyecto primero'); return; }
+    const name = prompt('Nombre de la nueva ubicación (ej. Salón 5):');
+    if(!name || !name.trim()) return;
+    const u = {
+      id: uuid(), proyectoId: proyecto.id, nombre: name.trim(),
+      sortOrder: ubicacionesOfProyecto(proyecto.id).length, deleted: false,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    ubicaciones.push(u);
+    idbPut('ubicaciones', u)
+      .then(() => applyUbicacionesToProyecto(proyecto.id))
+      .then(() => {
+        renderUbicacionesTab();
+        renderGroupBar();
+        render();
+        showToast(`✓ Ubicación "${u.nombre}" agregada`);
+      });
+  }
+
+  function renameUbicacion(id) {
+    const u = ubicaciones.find(x => x.id === id);
+    if(!u) return;
+    const name = prompt('Nuevo nombre:', u.nombre);
+    if(!name || !name.trim()) return;
+    const oldName = u.nombre;
+    u.nombre = name.trim();
+    u.updatedAt = new Date().toISOString();
+    idbPut('ubicaciones', u)
+      .then(() => renameUbicacionInItems(u.proyectoId, oldName, u.nombre))
+      .then(() => applyUbicacionesToProyecto(u.proyectoId))
+      .then(() => {
+        renderUbicacionesTab();
+        renderGroupBar();
+        render();
+        showToast('✓ Ubicación renombrada');
+      });
+  }
+
+  function deleteUbicacion(id) {
+    const u = ubicaciones.find(x => x.id === id);
+    if(!u) return;
+    if(!confirm(`¿Eliminar la ubicación "${u.nombre}"?\n\nLos artículos escaneados que ya la tenían asignada conservan el dato, pero dejará de aparecer como opción.`)) return;
+    u.deleted = true;
+    u.updatedAt = new Date().toISOString();
+    idbPut('ubicaciones', u)
+      .then(() => applyUbicacionesToProyecto(u.proyectoId))
+      .then(() => {
+        renderUbicacionesTab();
+        renderGroupBar();
+        render();
+        showToast('🗑 Ubicación eliminada');
+      });
+  }
+
+  function renderUbicacionesTab() {
+    const list = document.getElementById('ubicaciones-list');
+    if(!list) return;
+    list.innerHTML = '';
+    const proyecto = getCurrentProyecto();
+    ubicacionesOfProyecto(proyecto?.id).forEach(u => {
+      const div = document.createElement('div');
+      div.className = 'preset-item';
+      div.innerHTML = `
+        <div class="info">
+          <div class="name">📍 ${escapeHTML(u.nombre)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn secondary small" id="rename-ubic-${u.id}">✏️</button>
+          <button class="btn danger small" id="delete-ubic-${u.id}">🗑</button>
+        </div>
+      `;
+      list.appendChild(div);
+      document.getElementById(`rename-ubic-${u.id}`).onclick = () => renameUbicacion(u.id);
+      document.getElementById(`delete-ubic-${u.id}`).onclick = () => deleteUbicacion(u.id);
+    });
+  }
+
   function newPreset() {
     if(!activeProyectoId) { showToast('Crea un proyecto primero'); return; }
+    const ubicNames = activeUbicaciones().map(u => u.nombre);
     const newProject = {
       id: uuid(), name: 'Nuevo artículo', icon: '📦', fixedName: '', proyectoId: activeProyectoId,
       sortOrder: activeProjectsList().length, deleted: false,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       fields: [
         { key: 'codigo', label: 'CÓDIGO', type: 'text', required: true, continuous: true },
-        { key: 'ubicacion', label: 'Ubicación', type: 'text', required: false, continuous: false }
+        { key: 'ubicacion', label: 'Ubicación', type: 'select', required: true, continuous: false, isGroup: true, options: ubicNames }
       ]
     };
     projects.push(newProject);
@@ -1976,6 +2147,12 @@
   function editPreset(presetId) {
     const preset = projects.find(p => p.id === presetId);
     if(!preset) return;
+    // Se guarda esta MISMA referencia para toda la sesión de edición: si una
+    // sincronización en segundo plano reemplaza el array global "projects"
+    // mientras el editor está abierto, guardar/borrar debe seguir operando
+    // sobre lo que el usuario realmente está viendo y editando, no sobre una
+    // copia recién recargada que no tiene sus cambios (agregar/quitar campos).
+    editingPreset = preset;
 
     document.getElementById('preset-editor-title').textContent = `Editar: ${preset.icon} ${preset.name}`;
 
@@ -2070,7 +2247,12 @@
         `;
         fieldsList.appendChild(fieldDiv);
 
-        if(f.type === 'select') {
+        if(f.type === 'select' && f.isGroup) {
+          const note = document.createElement('div');
+          note.className = 'field-hint';
+          note.textContent = 'Las opciones de esta lista se administran en ⚙︎ Ajustes → Ubicaciones.';
+          fieldDiv.querySelector(`#options-editor-${idx}`).appendChild(note);
+        } else if(f.type === 'select') {
           fieldDiv.querySelector(`#options-editor-${idx}`).appendChild(renderOptionsEditor(f, idx));
         }
 
@@ -2084,6 +2266,7 @@
         fieldDiv.querySelector('.field-group')?.addEventListener('change', (e) => {
           if(e.target.checked) preset.fields.forEach((of, oi) => { if(oi !== idx) of.isGroup = false; });
           f.isGroup = e.target.checked;
+          if(f.isGroup) f.options = activeUbicaciones().map(u => u.nombre);
           renderFields();
         });
       });
@@ -2101,8 +2284,16 @@
     showSheet('preset-editor-sheet');
   }
 
+  // Reemplaza (o agrega) esta versión del artículo en el array global
+  // "projects", para que la UI la refleje de inmediato sin esperar a que
+  // termine la próxima sincronización.
+  function reconcileProject(p) {
+    const idx = projects.findIndex(x => x.id === p.id);
+    if(idx >= 0) projects[idx] = p; else projects.push(p);
+  }
+
   function savePresetChanges(presetId) {
-    const preset = projects.find(p => p.id === presetId);
+    const preset = (editingPreset && editingPreset.id === presetId) ? editingPreset : projects.find(p => p.id === presetId);
     if(!preset) return;
 
     preset.name = document.getElementById('preset-name').value.trim() || preset.name;
@@ -2117,11 +2308,14 @@
       f.continuous = document.querySelector(`.field-continuous[data-idx="${idx}"]`)?.checked || false;
       f.required = document.querySelector(`.field-required[data-idx="${idx}"]`)?.checked || false;
       f.isGroup = document.querySelector(`.field-group[data-idx="${idx}"]`)?.checked || false;
+      if(f.isGroup) f.options = activeUbicaciones().map(u => u.nombre);
     });
     preset.updatedAt = new Date().toISOString();
 
     idbPut('projects', preset).then(() => {
+      reconcileProject(preset);
       markProjectDirty(preset.id);
+      editingPreset = null;
       closeSheet('preset-editor-sheet');
       showToast('✓ Artículo actualizado');
       render();
@@ -2131,7 +2325,7 @@
 
   function deletePreset(presetId) {
     if(!confirm('¿Eliminar este artículo?\n\n⚠️ Se eliminarán todos sus artículos escaneados')) return;
-    const preset = projects.find(p => p.id === presetId);
+    const preset = (editingPreset && editingPreset.id === presetId) ? editingPreset : projects.find(p => p.id === presetId);
     if(!preset) return;
     preset.deleted = true;
     preset.updatedAt = new Date().toISOString();
@@ -2143,8 +2337,10 @@
       idbPut('projects', preset),
       ...affectedItems.map(it => idbPut('items', it))
     ]).then(() => {
+      reconcileProject(preset);
       markProjectDirty(presetId);
       affectedItems.forEach(it => markItemDirty(it.id));
+      editingPreset = null;
       closeSheet('preset-editor-sheet');
       showToast('🗑 Artículo eliminado');
       render();
@@ -2160,6 +2356,7 @@
   function closeSheet(id) {
     document.getElementById('backdrop').classList.remove('show');
     document.getElementById(id).classList.remove('show');
+    if(id === 'preset-editor-sheet') editingPreset = null;
   }
 
   // ===== EXPORT: EXCEL / CSV / JSON =====
@@ -2367,7 +2564,7 @@
 
   async function exportToJSON() {
     const attachments = await idbGetAll('attachments');
-    const backup = { version: 1, exportedAt: new Date().toISOString(), proyectos, projects, items, attachments };
+    const backup = { version: 1, exportedAt: new Date().toISOString(), proyectos, ubicaciones, projects, items, attachments };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2386,6 +2583,7 @@
         return;
       }
       await Promise.all((backup.proyectos || []).map(p => idbPut('proyectos', p)));
+      await Promise.all((backup.ubicaciones || []).map(u => idbPut('ubicaciones', u)));
       await Promise.all(backup.projects.map(p => idbPut('projects', p)));
       await Promise.all(backup.items.map(it => idbPut('items', it)));
       await Promise.all((backup.attachments || []).map(a => idbPut('attachments', a)));
@@ -2396,6 +2594,7 @@
       projects = await idbGetAll('projects');
       items = await idbGetAll('items');
       await ensureProyectos();
+      await ensureUbicaciones();
       activeProjectId = activeProjectsList()[0]?.id || null;
       render();
       openSettingsSheet();
@@ -2480,6 +2679,7 @@
   function renderSyncTab() {
     const proyecto = getCurrentProyecto();
     const code = proyecto?.workspaceCode || '';
+    renderSyncProyectoSelect();
     const input = document.getElementById('input-workspace-code');
     if(input && document.activeElement !== input) input.value = code;
     const nameInput = document.getElementById('input-device-name');
@@ -2494,6 +2694,26 @@
       setSyncStatus('Código guardado. Pendiente de sincronizar.', 'busy');
     }
     renderDevicesList();
+  }
+
+  // Selector de "a qué proyecto pertenece el código que voy a pegar" — al
+  // elegir otro proyecto, activa ese proyecto (el resto de la pestaña de
+  // sincronización siempre refleja el proyecto activo).
+  function renderSyncProyectoSelect() {
+    const sel = document.getElementById('select-sync-proyecto');
+    if(!sel || document.activeElement === sel) return;
+    sel.innerHTML = '';
+    activeProyectosList().forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name + (p.workspaceCode ? ' (sincronizado)' : '');
+      if(p.id === activeProyectoId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__';
+    newOpt.textContent = '➕ Crear proyecto nuevo…';
+    sel.appendChild(newOpt);
   }
 
   function saveDeviceName() {
@@ -2727,12 +2947,17 @@
   document.getElementById('btn-empty-project').onclick = emptyCurrentProject;
   document.getElementById('btn-sync-now').onclick = () => syncAllConfiguredProyectos(true);
   document.getElementById('btn-sync-manual').onclick = () => syncNow(true);
+  document.getElementById('select-sync-proyecto').addEventListener('change', (e) => {
+    if(e.target.value === '__new__') { newProyecto(); return; }
+    switchProyecto(e.target.value);
+  });
   document.getElementById('btn-generate-code').onclick = () => { document.getElementById('input-workspace-code').value = genWorkspaceCode(); };
   document.getElementById('btn-save-code').onclick = saveWorkspaceCode;
   document.getElementById('btn-disconnect-sync').onclick = disconnectSync;
   document.getElementById('btn-save-device-name').onclick = saveDeviceName;
   document.getElementById('btn-new-group').onclick = newPreset;
   document.getElementById('btn-new-proyecto').onclick = newProyecto;
+  document.getElementById('btn-new-ubicacion').onclick = newUbicacion;
   document.getElementById('btn-open-camera').addEventListener('click', openCamera);
   document.getElementById('btn-close-camera').addEventListener('click', closeCameraByUser);
 

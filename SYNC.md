@@ -12,13 +12,17 @@ proyecto "Escuela Norte" nunca mezcla sus datos con los del proyecto
 "Bodega central", aunque ambos estén sincronizados a la vez en el mismo
 dispositivo.
 
-1. Activa el proyecto que quieres compartir y abre **⚙︎ Ajustes →
-   Sincronización**.
+1. Abre **⚙︎ Ajustes → Sincronización**. Arriba hay un selector
+   **"Proyecto a sincronizar"** con todos tus proyectos locales (y una
+   opción para crear uno nuevo ahí mismo) — elige a cuál va a pertenecer el
+   código.
 2. Toca **🎲 Generar código nuevo** (o escribe uno propio) y **Guardar**.
-3. En cada otro dispositivo, activa el proyecto correspondiente (o crea uno)
-   y entra el **mismo código** en esa misma pantalla.
+3. En cada otro dispositivo, usa ese mismo selector para elegir o crear el
+   proyecto que va a recibir los datos, y entra el **mismo código** en esa
+   pantalla.
 4. Todos los dispositivos con ese código verán y editarán los artículos de
-   ese proyecto. La app sincroniza sola cada ~30 segundos, al reconectarse a
+   ese proyecto — absolutamente todos, con todo lo ya escaneado en ellos, no
+   solo algunos. La app sincroniza sola cada ~30 segundos, al reconectarse a
    internet y unos segundos después de cada cambio; también puedes tocar
    **☁︎ Sincronizar ahora** en cualquier momento (sincroniza todos los
    proyectos que tengan código configurado en este dispositivo).

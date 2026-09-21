@@ -1,5 +1,5 @@
 // Service Worker: cachea la app para funcionamiento offline
-const CACHE_VERSION = 'v40';
+const CACHE_VERSION = 'v41';
 
 const APP_SHELL = [
   './',

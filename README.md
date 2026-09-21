@@ -25,15 +25,20 @@ IndexedDB, con sincronización opcional vía Supabase.
 - **Artículo**: una hoja de inventario independiente dentro del proyecto
   activo (ej. "Chromebooks", "Herramientas", "Armario"). Cada artículo
   define sus propios campos.
+- **Ubicaciones**: la lista de ubicaciones del proyecto activo (ej. "Salón 1"
+  a "Salón 32") se administra en un solo lugar, **⚙︎ Ajustes → Ubicaciones**,
+  y se comparte automáticamente entre todos sus artículos — no hay que
+  configurarla en cada uno por separado. Al escanear, eliges el artículo
+  arriba y la ubicación en la barra de debajo.
 - **Campos**: texto, número, texto largo, fecha, lista de opciones, foto o
   ubicación GPS. Un campo puede marcarse como:
   - **Escanear**: se llena automáticamente durante el flujo de escaneo rápido
     (cámara o lector Bluetooth).
   - **Obligatorio**: no se puede guardar el artículo escaneado sin llenarlo.
-  - **Usar para filtrar/agrupar** (solo campos de lista): agrega una barra de
+  - **Usar para filtrar/agrupar** (solo campos de lista): sus opciones se
+    toman de la lista de Ubicaciones del proyecto. Agrega una barra de
     filtros arriba de la lista. Al exportar a Excel, los artículos que
-    comparten el mismo campo de agrupación (ej. varios tipos de equipo con
-    un campo "Ubicación" en común) se combinan en una hoja por cada valor.
+    comparten este campo se combinan en una hoja por cada ubicación.
 
 ## Escaneo
 
