@@ -692,7 +692,7 @@
 
 <header>
   <h1 id="app-title">📦 B Scan Inventory</h1>
-  <button id="btn-sync-now" title="Sincronizar">☁︎<span class="sync-dot" id="sync-dot"></span></button>
+  <button id="btn-sync-now" title="Sincronizar" style="display:none;">☁︎<span class="sync-dot" id="sync-dot"></span></button>
   <button id="btn-export" title="Exportar">⬇︎</button>
   <button id="btn-settings" title="Ajustes">⚙︎</button>
 </header>
@@ -792,7 +792,7 @@
       <button class="tab active" data-tab="proyectos-tab">Proyectos</button>
       <button class="tab" data-tab="groups-tab">Artículos</button>
       <button class="tab" data-tab="ubicaciones-tab">Ubicaciones</button>
-      <button class="tab" data-tab="sync-tab">Sincronización</button>
+      <button class="tab" data-tab="sync-tab" style="display:none;">Sincronización</button>
       <button class="tab" data-tab="export-tab">Exportar</button>
       <button class="tab" data-tab="data-tab">Datos</button>
     </div>
@@ -906,11 +906,21 @@
   const SUPABASE_URL = 'https://jnxyneruvvbmuydbxfmq.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpueHluZXJ1dnZibXV5ZGJ4Zm1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3NDI2MjIsImV4cCI6MjEwNTMxODYyMn0.yNhUvjacKXukp9tWaG4EjcOV2ve4zXoZj78VhMvj4lw';
 
+  // Sincronización en la nube desactivada a propósito por ahora: se está
+  // depurando el inventario local a fondo primero (había reportes de
+  // artículos que cambiaban de ubicación solos). El código de sincronización
+  // queda intacto para retomarlo más adelante; para reactivarlo basta con
+  // volver esto "true" (y quitar el "display:none" del botón ☁︎ del header
+  // y de la pestaña "Sincronización" en Ajustes).
+  const SYNC_ENABLED = false;
+
   let db, items = [], projects = [], proyectos = [], ubicaciones = [];
   let activeProjectId = null, activeGroupValue = null, activeProyectoId = null;
+  let groupValueByProject = {};
   let editingId = null;
   let editingPreset = null;
   let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
+  let pendingScanTimer = null;
   let syncBusy = false;
   let dirtyProjectIds = new Set(), dirtyItemIds = new Set();
   let syncDebounceTimer = null;
@@ -1070,6 +1080,27 @@
   function groupFieldOf(project) {
     return (project?.fields || []).find(f => f.isGroup && f.type === 'select');
   }
+
+  // Recuerda proyecto/artículo/ubicación activos entre sesiones. El teléfono
+  // puede recargar la página en cualquier momento al volver de segundo plano
+  // (el sistema libera memoria), y sin esto la app "olvidaba" en qué salón
+  // estaba trabajando la persona y volvía en silencio al primero de la
+  // lista: los siguientes escaneos quedaban mal ubicados sin que se notara.
+  function persistUIState() {
+    idbPut('meta', { key: 'uiState', activeProyectoId, activeProjectId, groupValueByProject });
+  }
+  function setActiveGroupValue(val) {
+    activeGroupValue = val;
+    if(activeProjectId) groupValueByProject[activeProjectId] = val;
+    persistUIState();
+  }
+  function restoredGroupValueFor(project) {
+    const gf = groupFieldOf(project);
+    if(!gf) return null;
+    const saved = project ? groupValueByProject[project.id] : null;
+    if(saved && (gf.options || []).includes(saved)) return saved;
+    return (gf.options || [])[0] || null;
+  }
   function itemsOfProject(projectId) {
     return items.filter(it => !it.deleted && it.projectId === projectId);
   }
@@ -1109,6 +1140,9 @@
     dirtyProjectIds = new Set(meta.dirty ? meta.dirty.projects : []);
     dirtyItemIds = new Set(meta.dirty ? meta.dirty.items : []);
 
+    groupValueByProject = (meta.uiState && meta.uiState.groupValueByProject) || {};
+    activeProyectoId = (meta.uiState && meta.uiState.activeProyectoId) || null;
+
     deviceId = meta.deviceId ? meta.deviceId.value : '';
     if(!deviceId) { deviceId = uuid(); await idbPut('meta', { key: 'deviceId', value: deviceId }); }
     deviceName = meta.deviceName ? meta.deviceName.value : '';
@@ -1142,9 +1176,11 @@
     await healInvalidIds();
     await ensureUbicaciones();
 
-    activeProjectId = activeProjectsList()[0]?.id || null;
-    const gf = groupFieldOf(getCurrentProject());
-    activeGroupValue = gf ? (gf.options || [])[0] || null : null;
+    const savedProjectId = meta.uiState && meta.uiState.activeProjectId;
+    activeProjectId = (savedProjectId && activeProjectsList().some(p => p.id === savedProjectId))
+      ? savedProjectId
+      : (activeProjectsList()[0]?.id || null);
+    activeGroupValue = restoredGroupValueFor(getCurrentProject());
 
     render();
     renderSyncTab();
@@ -1213,8 +1249,8 @@
       btn.textContent = `${p.icon || '📦'} ${p.name}`;
       btn.onclick = () => {
         activeProjectId = p.id;
-        const gf = groupFieldOf(p);
-        activeGroupValue = gf ? (gf.options || [])[0] || null : null;
+        activeGroupValue = restoredGroupValueFor(p);
+        persistUIState();
         render();
       };
       bar.appendChild(btn);
@@ -1241,7 +1277,7 @@
       const btn = document.createElement('button');
       btn.className = 'preset-btn' + (opt === activeGroupValue ? ' active' : '');
       btn.textContent = opt;
-      btn.onclick = () => { activeGroupValue = opt; render(); };
+      btn.onclick = () => { setActiveGroupValue(opt); render(); };
       bar.appendChild(btn);
     });
   }
@@ -1297,7 +1333,7 @@
         </div>
         <div class="badges">${hasGps ? '📍' : ''}${photoField ? '📷' : ''}</div>
       `;
-      card.onclick = () => openItemSheet(it.id);
+      card.onclick = () => { if(scanMode) stopScanning(); openItemSheet(it.id); };
       container.appendChild(card);
     });
 
@@ -1333,6 +1369,12 @@
 
   // ===== SCANNING FLOW =====
   function stopScanning() {
+    // Sin esto, un artículo a medio escanear (o el "siguiente campo") podía
+    // terminar de guardarse/reactivar el escaneo 400ms después de que la
+    // persona ya había tocado "Cancelar" — el escaneo parecía cancelado pero
+    // en realidad se reanudaba solo un instante después, robando el foco de
+    // vuelta y a veces guardando un artículo que ya no se quería.
+    if(pendingScanTimer) { clearTimeout(pendingScanTimer); pendingScanTimer = null; }
     scanMode = false;
     cameraModeActive = false;
     document.getElementById('scanning-banner').classList.remove('show');
@@ -1370,8 +1412,8 @@
 
     const scanInput = document.getElementById('scanning-input-visible');
     scanInput.value = '';
-    scanInput.focus();
-    setTimeout(() => scanInput.focus(), 100);
+    focusScanInput(scanInput);
+    setTimeout(() => focusScanInput(scanInput), 100);
   }
 
   function updateScanningBanner() {
@@ -1395,12 +1437,13 @@
     const allRequiredFilled = scanFields.filter(f => f.required).every(f => currentScanData[f.key]);
 
     if(currentScanIdx >= scanFields.length) {
-      setTimeout(() => saveScannedItemQuick(currentScanData), 400);
+      pendingScanTimer = setTimeout(() => { pendingScanTimer = null; saveScannedItemQuick(currentScanData); }, 400);
     } else {
-      setTimeout(() => {
+      pendingScanTimer = setTimeout(() => {
+        pendingScanTimer = null;
         updateScanningBanner();
         const scanInput = document.getElementById('scanning-input-visible');
-        if(scanInput) { scanInput.value = ''; scanInput.focus(); }
+        if(scanInput) { scanInput.value = ''; focusScanInput(scanInput); }
         if(cameraModeActive) resumeCameraForNextField();
         if(navigator.vibrate) navigator.vibrate(100);
       }, 400);
@@ -1450,7 +1493,7 @@
     updateScanningBanner();
 
     const scanInput = document.getElementById('scanning-input-visible');
-    if(scanInput) { scanInput.value = ''; scanInput.focus(); }
+    if(scanInput) { scanInput.value = ''; focusScanInput(scanInput); }
     if(cameraModeActive) resumeCameraForNextField();
   }
 
@@ -1875,8 +1918,8 @@
     if(id === activeProyectoId) return;
     activeProyectoId = id;
     activeProjectId = activeProjectsList()[0]?.id || null;
-    const gf = groupFieldOf(getCurrentProject());
-    activeGroupValue = gf ? (gf.options || [])[0] || null : null;
+    activeGroupValue = restoredGroupValueFor(getCurrentProject());
+    persistUIState();
     renderProyectosTab();
     renderGroupsList();
     renderUbicacionesTab();
@@ -2782,6 +2825,7 @@
   // nunca toca ni mezcla los datos del proyecto B, aunque ambos tengan
   // sincronización activa en el mismo dispositivo.
   async function syncNow(manual, proyectoId) {
+    if(!SYNC_ENABLED) return;
     const targetId = proyectoId || activeProyectoId;
     const proyecto = proyectos.find(p => p.id === targetId);
     const code = proyecto?.workspaceCode;
@@ -2936,7 +2980,7 @@
   };
 
   document.getElementById('btn-scan').onclick = startScanning;
-  document.getElementById('btn-new-item').onclick = () => openItemSheet(null);
+  document.getElementById('btn-new-item').onclick = () => { if(scanMode) stopScanning(); openItemSheet(null); };
   document.getElementById('btn-settings').onclick = openSettingsSheet;
   document.getElementById('proyecto-indicator').onclick = openSettingsSheet;
   document.getElementById('btn-export').onclick = openExportTab;
@@ -2993,19 +3037,34 @@
     }
   });
 
+  // Mientras se escanea, el input oculto debe recuperar el foco para seguir
+  // recibiendo códigos del lector — pero SOLO si de verdad se le quitó el
+  // foco sin querer. Si hay una hoja abierta (editar artículo, ajustes...),
+  // la persona está escribiendo ahí a propósito: robarle el foco a cada
+  // tecla dejaría la app inutilizable para editar (no se puede ni poner el
+  // cursor). scanMode puede seguir en true detrás de la hoja (p. ej. si el
+  // sistema no reinició la página al volver de segundo plano a mitad de un
+  // escaneo), así que esta protección es la que evita que quede "trabada".
+  function isAnySheetOpen() {
+    return !!document.querySelector('.sheet.show');
+  }
+  function focusScanInput(el) {
+    if(el && !isAnySheetOpen()) el.focus();
+  }
+
   scannerInput.addEventListener('keydown', (e) => {
     if(!scanMode) return;
     if(e.key === 'Enter') {
       e.preventDefault();
       const code = scannerInput.value.trim();
-      if(code) { processScanCode(code); scannerInput.value = ''; scannerInput.focus(); }
+      if(code) { processScanCode(code); scannerInput.value = ''; focusScanInput(scannerInput); }
     }
   });
   scannerInput.addEventListener('blur', () => {
-    if(scanMode) setTimeout(() => scannerInput.focus(), 50);
+    if(scanMode && !isAnySheetOpen()) setTimeout(() => scannerInput.focus(), 50);
   });
   document.addEventListener('focusout', (e) => {
-    if(scanMode && e.target !== scannerInput && !document.getElementById('camera-overlay').contains(e.target)) {
+    if(scanMode && !isAnySheetOpen() && e.target !== scannerInput && !document.getElementById('camera-overlay').contains(e.target)) {
       setTimeout(() => scannerInput.focus(), 10);
     }
   });
