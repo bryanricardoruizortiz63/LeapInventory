@@ -295,6 +295,19 @@
     font-weight: 500;
     letter-spacing: 0.5px;
   }
+  .scanning-mode-banner .location-pill {
+    display: inline-block;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .scanning-mode-banner .location-pill:empty {
+    display: none;
+  }
   .scanning-mode-banner .progress {
     font-size: 12px;
     opacity: 0.8;
@@ -711,6 +724,7 @@
 <main>
   <div class="scanning-mode-banner" id="scanning-banner">
     <div class="status">📱 Escaneando...</div>
+    <div class="location-pill" id="banner-location"></div>
     <div class="field-name" id="banner-field-name">CÓDIGO</div>
 
     <input
@@ -916,7 +930,12 @@
 
   let db, items = [], projects = [], proyectos = [], ubicaciones = [];
   let activeProjectId = null, activeGroupValue = null, activeProyectoId = null;
-  let groupValueByProject = {};
+  // Ubicación seleccionada por proyecto (no por artículo): así, al pasear
+  // entre artículos del mismo proyecto (ej. "Sillas verdes" → "Chromebooks")
+  // la ubicación elegida (ej. "Salón 13") se mantiene en vez de reiniciarse a
+  // la primera de la lista, ya que todos los artículos de un proyecto
+  // comparten la misma lista de Ubicaciones.
+  let groupValueByProyecto = {};
   let editingId = null;
   let editingPreset = null;
   let scanMode = false, scanFields = [], currentScanIdx = 0, currentScanData = {};
@@ -1087,17 +1106,27 @@
   // estaba trabajando la persona y volvía en silencio al primero de la
   // lista: los siguientes escaneos quedaban mal ubicados sin que se notara.
   function persistUIState() {
-    idbPut('meta', { key: 'uiState', activeProyectoId, activeProjectId, groupValueByProject });
+    idbPut('meta', { key: 'uiState', activeProyectoId, activeProjectId, groupValueByProyecto });
   }
   function setActiveGroupValue(val) {
     activeGroupValue = val;
-    if(activeProjectId) groupValueByProject[activeProjectId] = val;
+    if(activeProyectoId) groupValueByProyecto[activeProyectoId] = val;
     persistUIState();
+    // Si hay un artículo a medio escanear cuando cambian la ubicación desde
+    // la barra, ese artículo también debe quedar con la ubicación nueva (no
+    // la que estaba vigente cuando se empezó a escanearlo).
+    if(scanMode) {
+      const project = getCurrentProject();
+      const gf = project ? groupFieldOf(project) : null;
+      if(gf) currentScanData[gf.key] = val;
+      updateBannerLocation();
+    }
   }
   function restoredGroupValueFor(project) {
     const gf = groupFieldOf(project);
     if(!gf) return null;
-    const saved = project ? groupValueByProject[project.id] : null;
+    const proyectoId = project ? project.proyectoId : activeProyectoId;
+    const saved = proyectoId ? groupValueByProyecto[proyectoId] : null;
     if(saved && (gf.options || []).includes(saved)) return saved;
     return (gf.options || [])[0] || null;
   }
@@ -1140,7 +1169,12 @@
     dirtyProjectIds = new Set(meta.dirty ? meta.dirty.projects : []);
     dirtyItemIds = new Set(meta.dirty ? meta.dirty.items : []);
 
-    groupValueByProject = (meta.uiState && meta.uiState.groupValueByProject) || {};
+    groupValueByProyecto = (meta.uiState && meta.uiState.groupValueByProyecto) || {};
+    // Versiones anteriores guardaban la ubicación elegida por artículo
+    // (groupValueByProject) en vez de por proyecto; se traduce más abajo,
+    // una sola vez, después de que cada artículo tenga un proyectoId válido
+    // (ensureProyectos lo rellena si faltaba).
+    const legacyGroupValueByProject = (meta.uiState && meta.uiState.groupValueByProject) || null;
     activeProyectoId = (meta.uiState && meta.uiState.activeProyectoId) || null;
 
     deviceId = meta.deviceId ? meta.deviceId.value : '';
@@ -1175,6 +1209,13 @@
     await ensureProyectos(meta.workspaceCode ? meta.workspaceCode.value : '');
     await healInvalidIds();
     await ensureUbicaciones();
+
+    if(legacyGroupValueByProject && Object.keys(groupValueByProyecto).length === 0) {
+      for(const proj of projects) {
+        const val = legacyGroupValueByProject[proj.id];
+        if(val && !groupValueByProyecto[proj.proyectoId]) groupValueByProyecto[proj.proyectoId] = val;
+      }
+    }
 
     const savedProjectId = meta.uiState && meta.uiState.activeProjectId;
     activeProjectId = (savedProjectId && activeProjectsList().some(p => p.id === savedProjectId))
@@ -1416,11 +1457,36 @@
     setTimeout(() => focusScanInput(scanInput), 100);
   }
 
+  function updateBannerLocation() {
+    const el = document.getElementById('banner-location');
+    if(!el) return;
+    const project = getCurrentProject();
+    const gf = project ? groupFieldOf(project) : null;
+    el.textContent = (gf && activeGroupValue) ? `📍 ${gf.label}: ${activeGroupValue}` : '';
+  }
+
   function updateScanningBanner() {
+    updateBannerLocation();
     const field = scanFields[currentScanIdx];
     if(!field) return;
     document.getElementById('banner-field-name').textContent = field.label;
     document.getElementById('banner-progress').textContent = `Campo ${currentScanIdx + 1} de ${scanFields.length}`;
+  }
+
+  // Detecta si el código (u otros campos "Escanear") ya pertenece a un
+  // artículo existente de este mismo artículo/proyecto, para avisar antes de
+  // crear sin querer un duplicado por un doble escaneo accidental. Se
+  // compara por el campo "codigo" cuando existe (es el identificador natural
+  // del código de barras); si no, se comparan todos los campos "Escanear"
+  // juntos.
+  function findDuplicateForScan(project, scanData) {
+    if(!project) return null;
+    const codeField = scanFields.find(f => f.key === 'codigo');
+    const keyFields = codeField ? [codeField] : scanFields;
+    if(!keyFields.length) return null;
+    return itemsOfProject(project.id).find(it =>
+      keyFields.every(f => String(it.data[f.key] || '').trim().toLowerCase() === String(scanData[f.key] || '').trim().toLowerCase())
+    ) || null;
   }
 
   function processScanCode(code) {
@@ -1436,6 +1502,21 @@
 
     const allRequiredFilled = scanFields.filter(f => f.required).every(f => currentScanData[f.key]);
 
+    // Si hay un campo "codigo" explícito, es el identificador del código de
+    // barras: se revisa duplicado en cuanto se captura, sin esperar a que se
+    // terminen de escanear los demás campos "Escanear" (si los hay), para no
+    // hacer perder un escaneo extra antes de avisar.
+    const codeFieldForDup = scanFields.find(f => f.key === 'codigo');
+    const readyToCheckDup = codeFieldForDup ? (field.key === 'codigo') : (currentScanIdx >= scanFields.length);
+    if(readyToCheckDup) {
+      const project = getCurrentProject();
+      const dup = findDuplicateForScan(project, currentScanData);
+      if(dup) {
+        showDuplicateWarning(dup, currentScanData, project, currentScanIdx >= scanFields.length);
+        return;
+      }
+    }
+
     if(currentScanIdx >= scanFields.length) {
       pendingScanTimer = setTimeout(() => { pendingScanTimer = null; saveScannedItemQuick(currentScanData); }, 400);
     } else {
@@ -1449,6 +1530,67 @@
       }, 400);
     }
     void allRequiredFilled;
+  }
+
+  // Aviso bloqueante (no se autocierra) para no dejar que un doble escaneo
+  // del mismo código cree un duplicado por error: la persona debe elegir
+  // explícitamente ver el artículo existente, guardar de todas formas (si de
+  // verdad hay dos unidades con el mismo código), o descartar y re-escanear.
+  function showDuplicateWarning(existingItem, scanData, project, isComplete) {
+    document.getElementById('quick-options-popup')?.remove();
+    document.getElementById('duplicate-warning-popup')?.remove();
+    if(navigator.vibrate) navigator.vibrate([150, 80, 150, 80, 150]);
+
+    const codeField = scanFields.find(f => f.key === 'codigo') || scanFields[0];
+    const codeLabel = codeField ? (scanData[codeField.key] || '') : '';
+    const when = existingItem.createdAt ? new Date(existingItem.createdAt).toLocaleString() : '';
+    const gf = groupFieldOf(project);
+    const whereTxt = gf && existingItem.data[gf.key] ? ` · ${gf.label}: ${existingItem.data[gf.key]}` : '';
+
+    const popup = document.createElement('div');
+    popup.id = 'duplicate-warning-popup';
+    popup.style.cssText = `
+      position: fixed; bottom: calc(100px + var(--safe-bottom)); left: 20px; right: 20px;
+      background: linear-gradient(135deg, #f59e0b, #d97706); color: white;
+      padding: 14px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      z-index: 9999; animation: slideUp 0.25s ease-out;
+    `;
+    popup.innerHTML = `
+      <div style="font-weight:700; font-size:14px; margin-bottom:4px;">⚠️ Este código ya fue escaneado</div>
+      <div style="font-size:13px; opacity:.95; margin-bottom:10px;">"${escapeHTML(codeLabel)}"${escapeHTML(whereTxt)} · ${escapeHTML(when)}</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="dup-view" style="flex:1; min-width:100px; padding:10px; background:rgba(255,255,255,.25); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:12.5px; cursor:pointer;">👁️ Ver existente</button>
+        <button id="dup-save-anyway" style="flex:1; min-width:100px; padding:10px; background:rgba(255,255,255,.25); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:12.5px; cursor:pointer;">➕ Guardar de todas formas</button>
+        <button id="dup-rescan" style="flex:1; min-width:100px; padding:10px; background:rgba(0,0,0,.3); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:12.5px; cursor:pointer;">↺ Descartar y re-escanear</button>
+      </div>
+    `;
+    document.body.appendChild(popup);
+
+    document.getElementById('dup-view').onclick = () => {
+      popup.remove();
+      stopScanning();
+      openItemSheet(existingItem.id);
+    };
+    document.getElementById('dup-save-anyway').onclick = () => {
+      popup.remove();
+      if(isComplete) {
+        saveScannedItemQuick(scanData);
+      } else {
+        // El código era duplicado pero aún faltan otros campos "Escanear" de
+        // este artículo (config. avanzada con más de uno); se continúa el
+        // flujo normal y se guardará al completarlos, en vez de guardar ya
+        // con datos incompletos.
+        updateScanningBanner();
+        const scanInput = document.getElementById('scanning-input-visible');
+        if(scanInput) { scanInput.value = ''; focusScanInput(scanInput); }
+        if(cameraModeActive) resumeCameraForNextField();
+      }
+    };
+    document.getElementById('dup-rescan').onclick = () => {
+      popup.remove();
+      showToast('Descartado, listo para re-escanear');
+      resumeScanningForNextItem();
+    };
   }
 
   function saveScannedItemQuick(scanData) {
@@ -1734,8 +1876,9 @@
   }
 
   function openItemSheet(id, prefill) {
-    editingId = id || null;
     const project = getCurrentProject();
+    if(!project) { showToast('Crea un artículo primero'); return; }
+    editingId = id || null;
     const item = id ? items.find(it => it.id === id) : (prefill || { data: {} });
     const data = item.data || {};
 
@@ -3071,6 +3214,41 @@
 
   window.addEventListener('online', () => syncAllConfiguredProyectos(false));
   setInterval(() => syncAllConfiguredProyectos(false), 30000);
+
+  // ===== SERVICE WORKER: offline + aviso visible de actualización =====
+  // El archivo sw.js existía en el repo pero nunca se registraba desde aquí,
+  // así que el modo offline nunca funcionó de verdad y la persona no tenía
+  // forma de saber si estaba viendo la última versión de la app. Ahora se
+  // registra, y si detecta una versión nueva ya lista (el navegador la baja
+  // sola en segundo plano) se lo avisa con un banner en vez de recargar sola
+  // — una recarga silenciosa podría interrumpir un artículo a medio llenar.
+  if('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err => {
+        console.warn('No se pudo registrar el service worker:', err);
+      });
+    });
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if(hadController) showUpdateBanner();
+      hadController = true;
+    });
+  }
+
+  function showUpdateBanner() {
+    document.getElementById('update-banner')?.remove();
+    const bar = document.createElement('div');
+    bar.id = 'update-banner';
+    bar.style.cssText = `
+      position: fixed; top: calc(8px + var(--safe-top)); left: 50%; transform: translateX(-50%);
+      background: var(--text); color: #fff; padding: 10px 18px; border-radius: 999px;
+      font-size: 13px; font-weight: 600; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,.35);
+      cursor: pointer; white-space: nowrap;
+    `;
+    bar.textContent = '🔄 Nueva versión lista — toca para actualizar';
+    bar.onclick = () => window.location.reload();
+    document.body.appendChild(bar);
+  }
 
   // Init
   initDB().then(initData).catch(err => {

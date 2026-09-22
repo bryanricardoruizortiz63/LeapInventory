@@ -1,5 +1,8 @@
 // Service Worker: cachea la app para funcionamiento offline
-const CACHE_VERSION = 'v42';
+// IMPORTANTE: sube este número en cada deploy que cambie index.html/sw.js —
+// es lo único que hace que el navegador note que hay una versión nueva y la
+// vuelva a descargar (ver el registro/aviso de actualización en index.html).
+const CACHE_VERSION = 'v43';
 
 const APP_SHELL = [
   './',
