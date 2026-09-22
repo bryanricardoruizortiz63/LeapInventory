@@ -1100,6 +1100,22 @@
     return (project?.fields || []).find(f => f.isGroup && f.type === 'select');
   }
 
+  // Filtro especial de la barra de ubicaciones para encontrar artículos que
+  // quedaron SIN ubicación asignada (dato vacío, o una ubicación que ya no
+  // existe en la lista vigente porque se renombró/borró) — así se pueden
+  // localizar y corregir en vez de descubrirlos por accidente al toparse con
+  // uno vía el aviso de código duplicado.
+  const UNASSIGNED_GROUP = '__sin_ubicacion__';
+  function itemMatchesGroup(it, gf, groupValue) {
+    const v = it.data[gf.key];
+    if(groupValue === UNASSIGNED_GROUP) return !v || !(gf.options || []).includes(v);
+    return v === groupValue;
+  }
+  function unassignedCountFor(project, gf) {
+    if(!gf) return 0;
+    return itemsOfProject(project.id).filter(it => itemMatchesGroup(it, gf, UNASSIGNED_GROUP)).length;
+  }
+
   // Recuerda proyecto/artículo/ubicación activos entre sesiones. El teléfono
   // puede recargar la página en cualquier momento al volver de segundo plano
   // (el sistema libera memoria), y sin esto la app "olvidaba" en qué salón
@@ -1321,13 +1337,26 @@
       btn.onclick = () => { setActiveGroupValue(opt); render(); };
       bar.appendChild(btn);
     });
+    const unassigned = unassignedCountFor(project, gf);
+    if(unassigned > 0) {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn' + (activeGroupValue === UNASSIGNED_GROUP ? ' active' : '');
+      btn.style.cssText = 'border-color:#f59e0b; color:#b45309;' + (activeGroupValue === UNASSIGNED_GROUP ? ' background:#f59e0b; color:#fff;' : '');
+      btn.textContent = `⚠️ Sin ubicación (${unassigned})`;
+      btn.onclick = () => {
+        if(scanMode) { showToast('Termina o cancela el escaneo antes de revisar estos'); return; }
+        setActiveGroupValue(UNASSIGNED_GROUP);
+        render();
+      };
+      bar.appendChild(btn);
+    }
   }
 
   function updateStats() {
     const project = getCurrentProject();
     const gf = project ? groupFieldOf(project) : null;
     const all = project ? itemsOfProject(project.id) : [];
-    const filtered = gf ? all.filter(it => it.data[gf.key] === activeGroupValue) : all;
+    const filtered = gf ? all.filter(it => itemMatchesGroup(it, gf, activeGroupValue)) : all;
     document.getElementById('stat-count').textContent = all.length;
     document.getElementById('stat-group').textContent = filtered.length;
     document.getElementById('stat-group-label').textContent = gf ? gf.label : 'Total';
@@ -1351,7 +1380,7 @@
     }
     const gf = groupFieldOf(project);
     let list = itemsOfProject(project.id);
-    if(gf) list = list.filter(it => it.data[gf.key] === activeGroupValue);
+    if(gf) list = list.filter(it => itemMatchesGroup(it, gf, activeGroupValue));
     list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
     container.innerHTML = '';
@@ -1440,10 +1469,19 @@
       return;
     }
 
+    const gf = groupFieldOf(project);
+    // El filtro "⚠️ Sin ubicación" no es una ubicación real: si quedó
+    // seleccionado, no se debe poder escanear con él puesto, o los artículos
+    // nuevos terminarían con ese mismo dato inválido en vez de una ubicación
+    // de verdad.
+    if(gf && activeGroupValue === UNASSIGNED_GROUP) {
+      showToast('Elige una ubicación real antes de escanear');
+      return;
+    }
+
     scanMode = true;
     currentScanIdx = 0;
     currentScanData = {};
-    const gf = groupFieldOf(project);
     if(gf) currentScanData[gf.key] = activeGroupValue;
 
     document.getElementById('scanning-banner').classList.add('show');
