@@ -884,6 +884,11 @@
       <div class="btn-row">
         <button class="btn secondary" id="btn-export-json">💾 Respaldo JSON</button>
       </div>
+      <h3 style="margin-bottom:4px;">Formato de inventario institucional</h3>
+      <div class="field-hint" style="margin-bottom:8px;">Una sola hoja con una sección por ubicación (encabezado de color, columnas fijas: Nombre del Equipo, Marca, Modelo, Número de Serie, Fecha de Adquisición, Costo, Número de Propiedad, Localización, Fondo de Adquisición, Responsable, Condición) y "SIN ASIGNAR" al final.</div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-export-institucional">📑 Formato institucional</button>
+      </div>
     </div>
 
     <!-- DATA TAB -->
@@ -2578,6 +2583,27 @@
     });
   }
 
+  // Librería separada (ExcelJS) solo para el "Formato institucional": a
+  // diferencia de XLSX/SheetJS (edición community, sin soporte para escribir
+  // estilos de celda), ExcelJS sí permite colores, bordes y fuentes, que ese
+  // formato necesita para replicar el documento oficial.
+  function ensureExcelJS() {
+    if(window.ExcelJS) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+      script.onload = resolve;
+      script.onerror = () => {
+        const fb = document.createElement('script');
+        fb.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+        fb.onload = resolve;
+        fb.onerror = () => reject(new Error('No se pudo cargar la librería de Excel'));
+        document.head.appendChild(fb);
+      };
+      document.head.appendChild(script);
+    });
+  }
+
   function fieldExportValue(it, f) {
     const v = it.data[f.key];
     if(v == null || v === '') return '';
@@ -2700,6 +2726,129 @@
     } catch(err) {
       console.error(err);
       showToast('❌ Error exportando Excel');
+    }
+  }
+
+  // ===== EXPORT: FORMATO DE INVENTARIO INSTITUCIONAL =====
+  // Una sola hoja con una sección (encabezado de color + fila de columnas +
+  // filas de datos) por ubicación, en vez de una hoja por ubicación — y con
+  // columnas fijas en lugar de los campos propios de cada artículo. Replica
+  // el formato/estilo de una plantilla institucional provista por el
+  // usuario; usa SIEMPRE los datos actuales de la app, nunca los de esa
+  // plantilla.
+  const LEAP_COLUMNS = ['Nombre del Equipo', 'Marca', 'Modelo', 'Número de Serie', 'Fecha de Adquisición', 'Costo del Equipo', 'Número de Propiedad', 'Localización', 'Fondo de Adquisición', 'Responsable del Equipo', 'Condición del Equipo'];
+  const LEAP_COLORS = { maroon: 'FF6F1739', lightPink: 'FFF3E5EA', headerPink: 'FFD9B3C1', darkMaroonText: 'FF4B1027', grayText: 'FF222222', white: 'FFFFFFFF' };
+  const LEAP_UNASSIGNED = 'SIN ASIGNAR';
+
+  function leapFieldByLabel(project, label) {
+    return (project.fields || []).find(f => f.label.trim().toLowerCase() === label.trim().toLowerCase());
+  }
+  function leapFieldValue(it, project, label) {
+    const f = leapFieldByLabel(project, label);
+    return f ? fieldExportValue(it, f) : '';
+  }
+  function leapRowValues(it, project, locationName) {
+    return [
+      project.fixedName || project.name,
+      leapFieldValue(it, project, 'Marca'),
+      leapFieldValue(it, project, 'Modelo'),
+      leapFieldValue(it, project, 'Número de Serie'),
+      leapFieldValue(it, project, 'Fecha de Adquisición'),
+      leapFieldValue(it, project, 'Costo del Equipo'),
+      it.data.codigo || '',
+      locationName,
+      leapFieldValue(it, project, 'Fondo de Adquisición'),
+      leapFieldValue(it, project, 'Responsable del Equipo'),
+      it.notes || leapFieldValue(it, project, 'Condición del Equipo') || ''
+    ];
+  }
+  function leapStyleRow(row, { bold, italic, color, fill, size, align = 'left' }) {
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { name: 'Calibri', size: size || 9, bold: !!bold, italic: !!italic, color: { argb: color || LEAP_COLORS.grayText } };
+      if(fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+      cell.alignment = { horizontal: align, vertical: 'middle', wrapText: true };
+      cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+    });
+  }
+
+  async function exportToExcelInstitucional() {
+    try {
+      await ensureExcelJS();
+      const proyecto = getCurrentProyecto();
+      if(!proyecto) { showToast('Crea un proyecto primero'); return; }
+      await applyUbicacionesToProyecto(proyecto.id);
+      const selected = selectedExportProjects();
+      if(!selected.length) { showToast('Selecciona al menos un artículo'); return; }
+
+      // Agrupa cada artículo escaneado bajo el nombre de ubicación vigente;
+      // valores que ya no están en la lista de Ubicaciones (ej. una que se
+      // borró) se conservan como su propia sección en vez de perderse.
+      const ubicNames = ubicacionesOfProyecto(proyecto.id).map(u => u.nombre);
+      const buckets = new Map();
+      ubicNames.forEach(n => buckets.set(n, []));
+      selected.forEach(project => {
+        const gf = groupFieldOf(project);
+        itemsOfProject(project.id).forEach(it => {
+          const loc = (gf && it.data[gf.key]) || LEAP_UNASSIGNED;
+          if(!buckets.has(loc)) buckets.set(loc, []);
+          buckets.get(loc).push({ it, project });
+        });
+      });
+
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Inventario', { views: [{ showGridLines: false, state: 'frozen', ySplit: 4 }] });
+      sheet.columns = [28, 12, 14, 20, 16, 15, 19, 28, 19, 22, 38].map(width => ({ width }));
+
+      sheet.mergeCells('A1:K1');
+      sheet.getCell('A1').value = 'TABLA DE INVENTARIO';
+      leapStyleRow(sheet.getRow(1), { bold: true, color: LEAP_COLORS.white, fill: LEAP_COLORS.maroon, size: 16, align: 'center' });
+      sheet.getRow(1).height = 32;
+
+      sheet.mergeCells('A2:K2');
+      sheet.getCell('A2').value = `${proyecto.name.toUpperCase()} — Inventario ${new Date().getFullYear()}`;
+      leapStyleRow(sheet.getRow(2), { bold: true, color: LEAP_COLORS.maroon, fill: LEAP_COLORS.lightPink, size: 12, align: 'center' });
+      sheet.getRow(2).height = 22;
+
+      sheet.mergeCells('A3:K3');
+      sheet.getCell('A3').value = 'Áreas administrativas primero, seguidas por salones y áreas operacionales';
+      leapStyleRow(sheet.getRow(3), { italic: true, color: LEAP_COLORS.maroon, fill: LEAP_COLORS.white, size: 9, align: 'center' });
+
+      let r = 5;
+      const addSection = (name, rows) => {
+        sheet.mergeCells(`A${r}:K${r}`);
+        sheet.getCell(`A${r}`).value = name;
+        leapStyleRow(sheet.getRow(r), { bold: true, color: LEAP_COLORS.white, fill: LEAP_COLORS.maroon, size: 11 });
+        r++;
+        const headerRow = sheet.getRow(r);
+        LEAP_COLUMNS.forEach((c, i) => { headerRow.getCell(i + 1).value = c; });
+        leapStyleRow(headerRow, { bold: true, color: LEAP_COLORS.darkMaroonText, fill: LEAP_COLORS.headerPink, size: 9, align: 'center' });
+        r++;
+        rows.forEach(({ it, project }) => {
+          const row = sheet.getRow(r);
+          leapRowValues(it, project, name).forEach((v, i) => { row.getCell(i + 1).value = v; });
+          leapStyleRow(row, { color: LEAP_COLORS.grayText, fill: LEAP_COLORS.white, size: 9 });
+          r++;
+        });
+      };
+
+      ubicNames.forEach(name => addSection(name, buckets.get(name)));
+      for(const [name, rows] of buckets) {
+        if(ubicNames.includes(name) || name === LEAP_UNASSIGNED) continue;
+        if(rows.length) addSection(name, rows);
+      }
+      if((buckets.get(LEAP_UNASSIGNED) || []).length) addSection(LEAP_UNASSIGNED, buckets.get(LEAP_UNASSIGNED));
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${safeFileName(proyecto.name)}_Inventario_${todayISO()}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      showToast('✓ Exportado (formato institucional)');
+    } catch(err) {
+      console.error(err);
+      showToast('❌ Error exportando el formato institucional');
     }
   }
 
@@ -3148,6 +3297,7 @@
   document.getElementById('btn-export-excel').onclick = exportToExcel;
   document.getElementById('btn-export-csv').onclick = exportToCSV;
   document.getElementById('btn-export-json').onclick = exportToJSON;
+  document.getElementById('btn-export-institucional').onclick = exportToExcelInstitucional;
   document.getElementById('input-import-json').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if(file) importFromJSON(file);
