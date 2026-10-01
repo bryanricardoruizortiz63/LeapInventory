@@ -68,6 +68,15 @@ Desde **⚙︎ Ajustes → Exportar** (siempre del proyecto activo):
   combinan en una por cada valor de ese campo (ej. una por ubicación, con
   todos los tipos de artículo mezclados ahí); el resto mantiene una hoja
   propia. Incluye una hoja de **RESUMEN**.
+- **Formato institucional**: una sola hoja con una sección por ubicación
+  (encabezado de color, columnas fijas: Nombre del Equipo, Marca, Modelo,
+  Número de Serie, Fecha de Adquisición, Costo, Número de Propiedad,
+  Localización, Fondo de Adquisición, Responsable, Condición) y "SIN
+  ASIGNAR" al final para lo que no tenga ubicación. Usa el valor escaneado
+  (código) como Número de Propiedad, el nombre del artículo como Nombre del
+  Equipo, y cualquier campo propio cuya etiqueta coincida con una de esas
+  columnas (ej. un campo llamado "Marca"); lo que no tenga campo
+  correspondiente queda en blanco.
 - **CSV**: todos los artículos seleccionados en un solo archivo.
 - **Respaldo JSON**: copia completa de tus datos (proyectos, artículos y
   fotos) para guardar o transferir a otro dispositivo. Se restaura desde
